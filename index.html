@@ -15,7 +15,7 @@
      status bar overlays transparently (matching the edge-to-edge, safe-area-aware layout the
      app already builds for narrow viewports — see the max-width:480px block below). -->
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="תקציב">
 <meta name="mobile-web-app-capable" content="yes">
 
@@ -83,6 +83,24 @@
     --stage-ink-hi: #F4F6FB;
     --stage-ink-mid: #8D95AB;
     --shadow-stage: 0 80px 170px -50px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03);
+  }
+  /* body's own backdrop must match whichever theme is actually active — it was previously
+     hard-coded dark regardless of the app's light/dark setting, which meant any stray sliver of
+     it peeking through (e.g. a sizing rounding error) looked jarringly wrong in light mode
+     instead of blending in. Mirrors the exact light values already used by .screen[data-theme]. */
+  :root[data-theme="light"] {
+    --stage-1: #F5F7FB;
+    --stage-2: #ECEFF6;
+    --stage-ink-hi: #14171F;
+    --stage-ink-mid: #5C6270;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --stage-1: #F5F7FB;
+      --stage-2: #ECEFF6;
+      --stage-ink-hi: #14171F;
+      --stage-ink-mid: #5C6270;
+    }
   }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -254,10 +272,10 @@
      shouldn't be stuck without tab access until they tap "back". Still BELOW the sheet/modal
      backdrops (70/80), which are transient blocking actions that should keep covering it. */
   .tabbar { flex-shrink: 0; display: flex; border-top: 1px solid var(--divider); padding: 9px 4px calc(9px + 14px); backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%); background: color-mix(in srgb, var(--screen-g2) 80%, transparent); position: relative; z-index: 45; }
-  .tab-btn { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink-dim); font-size: 9.5px; font-weight: 700; cursor: pointer; padding: 4px 0; }
+  .tab-btn { flex: 1; background: none; border: none; display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--ink-dim); font-size: 10px; font-weight: 700; cursor: pointer; padding: 4px 0; }
   .tab-btn.active { color: var(--brand-1); }
   .tab-btn.active svg { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--brand-1) 60%, transparent)); }
-  .tab-btn svg { width: 21px; height: 21px; }
+  .tab-btn svg { width: 24px; height: 24px; }
   .tab-home-spacer { flex: 1; }
 
   .fab-mini {
@@ -704,12 +722,17 @@
               <div class="foot-note" id="cycleModeNote"></div>
 
               <div class="section-title" style="margin-top:6px;">גיבוי ושחזור</div>
-              <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+              <div class="card">
+                <div class="set-row"><span class="val" id="cloudStatusVal">—</span><span class="lbl">גיבוי בענן</span></div>
+                <div class="set-row"><span class="val" id="cloudLastSyncVal">—</span><span class="lbl">גיבוי אחרון</span></div>
+              </div>
+              <div class="foot-note" id="cloudFootNote">הנתונים מגובים אוטומטית לענן ברקע, בנוסף לשמירה המקומית — הגיבוי פרטי למכשיר הזה בלבד ואינו משותף עם מכשירים אחרים.</div>
+              <div class="card" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
                 <button class="save-btn" id="backupShareBtn">📤 שתפו גיבוי</button>
                 <button class="chip-btn" id="backupRestoreBtn" style="align-self:center;">שחזור מגיבוי</button>
                 <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none;">
               </div>
-              <div class="foot-note">הנתונים נשמרים רק על המכשיר הזה — אין גיבוי אוטומטי בענן. מומלץ לשתף גיבוי לעצמכם מדי פעם (בוואטסאפ, במייל וכו') כדי לא לאבד מידע אם תמחקו את האפליקציה או תחליפו טלפון.</div>
+              <div class="foot-note">אפשר גם לשתף גיבוי ידנית בכל רגע (למשל בוואטסאפ) כרשת ביטחון נוספת מעבר לגיבוי האוטומטי.</div>
 
               <div class="section-title" style="margin-top:6px;">אודות</div>
               <div class="card">
@@ -958,7 +981,14 @@
       saveWarningShown = true;
       showToast("⚠️ השמירה האוטומטית לא זמינה (מצב גלישה פרטית?)", 4500);
     }
+    if (typeof window.__scheduleCloudSync === "function") window.__scheduleCloudSync();
   }
+
+  // Bridge functions the cloud-backup script (loaded separately, has no access to this closure's
+  // `state`) calls into. Kept to exactly the three things it actually needs.
+  window.__getAppState = function () { return state; };
+  window.__hasLocalData = function () { return !!Storage.load(); };
+  window.__offerCloudRestore = function (cloudData) { confirmRestore(cloudData); };
 
   /** Brief shake to flag an invalid field without a jarring alert. */
   function shake(el) {
@@ -2094,8 +2124,8 @@
    * ===================================================================== */
   function applyTheme(mode) {
     state.theme = mode;
-    if (mode === "system") $("screen").removeAttribute("data-theme");
-    else $("screen").setAttribute("data-theme", mode);
+    if (mode === "system") { $("screen").removeAttribute("data-theme"); document.documentElement.removeAttribute("data-theme"); }
+    else { $("screen").setAttribute("data-theme", mode); document.documentElement.setAttribute("data-theme", mode); }
     document.querySelectorAll("#themeSeg button").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-theme") === mode); });
     persist();
   }
@@ -2507,6 +2537,26 @@
     });
   });
 
+  /**
+   * Reflects the cloud-backup script's status (that script has no access to this closure, so it
+   * calls this global bridge whenever its status changes — this just renders whatever it reports).
+   */
+  window.__updateCloudStatusUI = function () {
+    var statusEl = $("cloudStatusVal"), lastSyncEl = $("cloudLastSyncVal"), footEl = $("cloudFootNote");
+    if (!statusEl || typeof window.__cloudBackupInfo !== "function") return;
+    var info = window.__cloudBackupInfo();
+    if (!info.configured) {
+      statusEl.textContent = "טרם הוגדר";
+      lastSyncEl.textContent = "—";
+      footEl.textContent = "גיבוי הענן טרם הופעל עבור האפליקציה הזו — עד אז הנתונים נשמרים רק על המכשיר. אפשר להשתמש בשיתוף גיבוי ידני למטה בינתיים.";
+      return;
+    }
+    var statusText = { connecting: "מתחבר…", "offline-app-ready": "מחובר ✓", error: "שגיאת חיבור", disabled: "כבוי" }[info.status] || "—";
+    statusEl.textContent = statusText;
+    lastSyncEl.textContent = info.lastSyncAt ? info.lastSyncAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "טרם בוצע";
+    footEl.textContent = "הנתונים מגובים אוטומטית לענן ברקע, בנוסף לשמירה המקומית — הגיבוי פרטי למכשיר הזה בלבד ואינו משותף עם מכשירים אחרים.";
+  };
+
   /* =====================================================================
    * INIT
    * ===================================================================== */
@@ -2514,6 +2564,7 @@
   if (state.theme && state.theme !== "system") applyTheme(state.theme);
   document.querySelectorAll("#cycleModeSeg button").forEach(function (b) { b.classList.toggle("active", +b.getAttribute("data-cycle") === cycleStartDay()); });
   updateCycleModeNote();
+  window.__updateCloudStatusUI();
   renderHome();
   renderRecurring();
 })();
@@ -2564,6 +2615,99 @@
       if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) e.preventDefault();
     }, { passive: false });
   })();
+</script>
+
+<!--
+  CLOUD BACKUP — Firebase (Firestore + Anonymous Auth). Each device signs in anonymously and
+  gets its own permanent, private identity with no login screen — its data backs up under that
+  identity alone, never shared with the other phone. Loaded from Firebase's CDN, so it needs
+  network the first time; the app's own core functionality never depends on it and keeps working
+  fully offline exactly as before regardless of whether this loads or succeeds.
+-->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // TODO: replace with the real project config from the Firebase console (Project settings ->
+  // your app's config). These values are meant to be public/client-embedded — Firebase enforces
+  // privacy through Firestore security rules, not by hiding this object. Until this is filled in
+  // with a real project, every call below fails silently and the app behaves exactly as it did
+  // with local-only storage — nothing here can break the app itself.
+  var firebaseConfig = {
+    apiKey: "REPLACE_ME",
+    authDomain: "REPLACE_ME.firebaseapp.com",
+    projectId: "REPLACE_ME",
+    storageBucket: "REPLACE_ME.appspot.com",
+    messagingSenderId: "REPLACE_ME",
+    appId: "REPLACE_ME"
+  };
+  var CLOUD_CONFIGURED = firebaseConfig.apiKey !== "REPLACE_ME";
+
+  var cloudUid = null;
+  var cloudSyncTimer = null;
+  var cloudStatus = "disabled"; // disabled | connecting | offline-app-ready | error
+
+  function setCloudStatus(status) {
+    cloudStatus = status;
+    if (typeof window.__updateCloudStatusUI === "function") window.__updateCloudStatusUI();
+  }
+
+  function initCloudBackup() {
+    if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { setCloudStatus("disabled"); return; }
+    try {
+      firebase.initializeApp(firebaseConfig);
+      setCloudStatus("connecting");
+      firebase.auth().onAuthStateChanged(function (user) {
+        if (!user) return;
+        cloudUid = user.uid;
+        setCloudStatus("offline-app-ready");
+        maybeRestoreFromCloud();
+      });
+      firebase.auth().signInAnonymously().catch(function () { setCloudStatus("error"); });
+    } catch (err) {
+      setCloudStatus("error");
+    }
+  }
+
+  window.__scheduleCloudSync = function () {
+    if (!CLOUD_CONFIGURED || !cloudUid) return;
+    clearTimeout(cloudSyncTimer);
+    // Debounced — a flurry of edits (typing an amount, dragging a slider) coalesces into one
+    // write instead of hammering Firestore on every keystroke.
+    cloudSyncTimer = setTimeout(pushToCloud, 2500);
+  };
+
+  function pushToCloud() {
+    if (!cloudUid || typeof window.__getAppState !== "function") return;
+    try {
+      firebase.firestore().collection("backups").doc(cloudUid).set({
+        data: window.__getAppState(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(function () {
+        window.__lastCloudSyncAt = new Date();
+        if (typeof window.__updateCloudStatusUI === "function") window.__updateCloudStatusUI();
+      }).catch(function () { /* next edit will retry via the same debounced path */ });
+    } catch (err) { /* ignore — local save already succeeded, cloud backup is best-effort */ }
+  }
+
+  function maybeRestoreFromCloud() {
+    // Only ever offers a restore when THIS device has no local data of its own (a fresh install,
+    // or a brand-new phone) — never silently overwrites data someone is actively using.
+    if (typeof window.__hasLocalData === "function" && window.__hasLocalData()) return;
+    firebase.firestore().collection("backups").doc(cloudUid).get().then(function (doc) {
+      if (doc.exists && doc.data().data && typeof window.__offerCloudRestore === "function") {
+        window.__offerCloudRestore(doc.data().data);
+      }
+    }).catch(function () { /* no cloud backup to offer — normal for a first-ever install */ });
+  }
+
+  window.__cloudBackupInfo = function () { return { configured: CLOUD_CONFIGURED, status: cloudStatus, lastSyncAt: window.__lastCloudSyncAt || null }; };
+
+  window.addEventListener("load", initCloudBackup);
+})();
 </script>
 
 <script>

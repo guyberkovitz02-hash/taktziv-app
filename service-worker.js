@@ -1,7 +1,7 @@
 // Bump this on every deploy that changes index.html/manifest/icons — it's what makes the
 // activate handler throw away the old cached shell and adopt the new one. Leaving it unchanged
 // means returning visitors keep seeing yesterday's cached version even after a real update.
-const CACHE_VERSION = "taktziv-shell-v6";
+const CACHE_VERSION = "taktziv-shell-v7";
 
 const APP_SHELL = [
   "./",
@@ -17,9 +17,24 @@ const APP_SHELL = [
   "./icons/icon-512.png"
 ];
 
+// Cloud-backup SDK, cached best-effort and separately from APP_SHELL — cache.addAll() fails
+// entirely if even one URL in it fails, and these are cross-origin, so a single blip fetching
+// them must never be able to take down the app's core offline guarantee.
+const CLOUD_SDK_URLS = [
+  "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js",
+  "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"
+];
+
 self.addEventListener("install", function (event) {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then(function (cache) { return cache.addAll(APP_SHELL); })
+    caches.open(CACHE_VERSION).then(function (cache) {
+      return cache.addAll(APP_SHELL).then(function () {
+        return Promise.all(CLOUD_SDK_URLS.map(function (url) {
+          return cache.add(url).catch(function () { /* offline-first guarantee only ever covers the core app shell */ });
+        }));
+      });
+    })
   );
   self.skipWaiting();
 });
