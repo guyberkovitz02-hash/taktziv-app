@@ -688,6 +688,14 @@
               </div>
               <div class="foot-note" id="cycleModeNote"></div>
 
+              <div class="section-title" style="margin-top:6px;">גיבוי ושחזור</div>
+              <div class="card" style="display:flex; flex-direction:column; gap:10px;">
+                <button class="save-btn" id="backupShareBtn">📤 שתפו גיבוי</button>
+                <button class="chip-btn" id="backupRestoreBtn" style="align-self:center;">שחזור מגיבוי</button>
+                <input type="file" id="backupFileInput" accept="application/json,.json" style="display:none;">
+              </div>
+              <div class="foot-note">הנתונים נשמרים רק על המכשיר הזה — אין גיבוי אוטומטי בענן. מומלץ לשתף גיבוי לעצמכם מדי פעם (בוואטסאפ, במייל וכו') כדי לא לאבד מידע אם תמחקו את האפליקציה או תחליפו טלפון.</div>
+
               <div class="section-title" style="margin-top:6px;">אודות</div>
               <div class="card">
                 <div class="set-row"><span class="val">1.1.0</span><span class="lbl">גרסה</span></div>
@@ -2118,6 +2126,73 @@
       location.reload();
     });
   });
+
+  /* =====================================================================
+   * BACKUP / RESTORE — the only real safety net for data that otherwise lives solely in this
+   * device's localStorage. "Share" hands the whole app state off as a JSON file through the
+   * native iOS share sheet (WhatsApp, Mail, Files, AirDrop...); "Restore" reads one back in.
+   * ===================================================================== */
+  function backupFilename() {
+    var d = new Date();
+    return "taktziv-backup-" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + ".json";
+  }
+
+  async function shareBackup() {
+    var json = JSON.stringify(state, null, 2);
+    var filename = backupFilename();
+    var file = new File([json], filename, { type: "application/json" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: "גיבוי תקציב", text: "גיבוי נתוני אפליקציית תקציב מתאריך " + new Date().toLocaleDateString("he-IL") });
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return; // user closed the share sheet — not an error
+        // otherwise fall through to the download fallback below
+      }
+    }
+    // Fallback for browsers without file-sharing support (e.g. desktop): a plain download.
+    var url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  on("backupShareBtn", "click", function () { shareBackup(); });
+
+  on("backupRestoreBtn", "click", function () { $("backupFileInput").click(); });
+  on("backupFileInput", "change", function (e) {
+    var file = e.target.files && e.target.files[0];
+    e.target.value = ""; // always reset, so picking the same file twice still fires 'change'
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed;
+      try { parsed = JSON.parse(reader.result); } catch (err) { showToast("⚠️ הקובץ שנבחר אינו קובץ גיבוי תקין"); return; }
+      var looksValid = parsed && typeof parsed === "object" && parsed.months && typeof parsed.months === "object" &&
+        Array.isArray(parsed.categoriesExpense) && Array.isArray(parsed.categoriesIncome) && Array.isArray(parsed.recurring);
+      if (!looksValid) { showToast("⚠️ הקובץ שנבחר אינו קובץ גיבוי תקין"); return; }
+      confirmRestore(parsed);
+    };
+    reader.readAsText(file);
+  });
+
+  function confirmRestore(parsed) {
+    var html =
+      '<div class="modal-head"><span class="modal-title">שחזור מגיבוי</span><button class="modal-close" data-close>✕</button></div>' +
+      '<div class="modal-body">' +
+      '<div class="modal-sub">הפעולה תחליף את כל הנתונים הנוכחיים באפליקציה בנתוני הגיבוי שנבחר. אי אפשר לבטל אחרי שמשחזרים.</div>' +
+      '<div class="modal-actions">' +
+      '<button class="modal-btn danger" id="confirmRestoreBtn">שחזרו את הגיבוי</button>' +
+      '<button class="modal-btn" data-close>ביטול</button>' +
+      "</div></div>";
+    Modal.open(html);
+    on("confirmRestoreBtn", "click", function () {
+      localStorage.setItem(Storage.KEY, JSON.stringify(parsed));
+      Modal.close();
+      location.reload();
+    });
+  }
 
   /* =====================================================================
    * FAB — draggable, but only within the app's actual content area. It must never land on top
