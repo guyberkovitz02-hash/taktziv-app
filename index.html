@@ -2,7 +2,7 @@
 <html lang="he">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>תקציב</title>
 <meta name="description" content="אפליקציית תקציב אישי בעברית — הכנסות, הוצאות, הוצאות קבועות ותכנון חיסכון, פועלת גם ללא אינטרנט.">
 
@@ -63,9 +63,11 @@
     height: 100%;
     overflow: hidden;
     overscroll-behavior: none;
+    touch-action: manipulation; /* blocks pinch-zoom and double-tap-zoom at the gesture level */
   }
 
   body {
+    touch-action: manipulation;
     margin: 0;
     height: 100%;
     position: fixed;
@@ -2315,6 +2317,53 @@
   renderHome();
   renderRecurring();
 })();
+</script>
+
+<script>
+  // Belt-and-suspenders zoom lock. The viewport meta + touch-action:manipulation cover most
+  // engines, but Safari fires its own proprietary pinch-gesture events independently of touch
+  // events — those need to be caught separately, and double-tap-zoom needs an explicit timing
+  // check since it isn't reliably covered by touch-action alone on every iOS version.
+  ["gesturestart", "gesturechange", "gestureend"].forEach(function (evt) {
+    document.addEventListener(evt, function (e) { e.preventDefault(); });
+  });
+  var lastTouchEnd = 0;
+  document.addEventListener("touchend", function (e) {
+    var now = Date.now();
+    if (now - lastTouchEnd <= 300) e.preventDefault();
+    lastTouchEnd = now;
+  }, false);
+
+  /**
+   * The real fix for iOS's rubber-band bounce. overscroll-behavior (used elsewhere in this file)
+   * isn't consistently honored by every iOS/Safari version for the top-level document, especially
+   * once the app is running standalone from the home screen — so this handles it directly at the
+   * touch level instead, which is the one approach that's reliably worked across iOS versions:
+   *   - touchmove outside any scrollable container: blocked outright (nothing at that level
+   *     should ever move).
+   *   - touchmove inside a scrollable container: left completely alone UNLESS it's already at
+   *     that container's own top/bottom edge and still being pulled further in that direction —
+   *     only that specific overscroll moment is blocked, so normal scrolling is never affected.
+   */
+  (function preventBounce() {
+    var lastY = 0;
+    document.addEventListener("touchstart", function (e) {
+      if (e.touches.length === 1) lastY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener("touchmove", function (e) {
+      if (e.touches.length > 1) return; // let pinch-related touches alone; gesture handlers above already block actual zoom
+      var scrollable = e.target.closest(".scroll, .sheet-body, .modal-box");
+      if (!scrollable) { e.preventDefault(); return; }
+
+      var y = e.touches[0].clientY;
+      var deltaY = y - lastY;
+      lastY = y;
+      var atTop = scrollable.scrollTop <= 0;
+      var atBottom = scrollable.scrollHeight - scrollable.scrollTop <= scrollable.clientHeight + 1;
+      if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) e.preventDefault();
+    }, { passive: false });
+  })();
 </script>
 
 <script>
