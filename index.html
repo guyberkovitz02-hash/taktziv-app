@@ -390,23 +390,25 @@
   /* On an actual phone screen, drop the desktop "phone mockup" chrome entirely and
      run edge-to-edge like a real installed app — fake bezel/notch/status-bar would
      just double up on the device's real ones. */
-  @media (max-width: 480px) {
-    .stage { padding: 0; gap: 0; min-height: 100vh; min-height: 100dvh; }
-    .stage-copy { display: none; }
-    .device-row { width: 100%; }
-    .phone {
-      width: 100vw; height: 100vh; height: 100dvh;
-      max-width: none; max-height: none;
-      padding: 0; border-radius: 0; box-shadow: none; background: none;
-    }
-    .notch { display: none; }
-    .screen { border-radius: 0; }
-    .statusbar { display: none; }
-    .navbar, .navbar-row { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
-    .tabbar { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
-    .tab-home { bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
-    .fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  /* This is the actual deployed app, not a demo page — it must never present itself wrapped in
+     a decorative phone-frame graphic with marketing copy next to it, regardless of browser
+     window width. That treatment only ever made sense for the Claude Artifact preview context
+     (people casually browsing on a desktop). Here, unconditionally, always: */
+  .stage { padding: 0; gap: 0; min-height: 100vh; min-height: 100dvh; }
+  .stage-copy { display: none; }
+  .device-row { width: 100%; }
+  .phone {
+    width: 100vw; height: 100vh; height: 100dvh;
+    max-width: none; max-height: none;
+    padding: 0; border-radius: 0; box-shadow: none; background: none;
   }
+  .notch { display: none; }
+  .screen { border-radius: 0; }
+  .statusbar { display: none; }
+  .navbar, .navbar-row { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
+  .tabbar { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
+  .tab-home { bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+  .fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 </style>
 </head>
 <body>
