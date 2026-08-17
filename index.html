@@ -53,7 +53,7 @@
     --shadow-stage: 0 80px 170px -50px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.03);
   }
 
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
   /* Locks the actual page from ever scrolling/bouncing itself — every screen's real content
      scrolls inside its own inner .scroll/.sheet-body/.modal-box/#drillScroll container instead
@@ -137,7 +137,7 @@
   .scroll::-webkit-scrollbar { width: 0; }
 
   .month-switch { display: flex; align-items: center; justify-content: space-between; padding: 2px 2px; }
-  .month-switch button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--ink-hi); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .month-switch button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass-bg); color: var(--ink-hi); display: flex; align-items: center; justify-content: center; cursor: pointer; }
   .month-switch button:disabled { opacity: 0.35; cursor: not-allowed; }
   .month-switch .label { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; }
   .month-switch .label.range { font-size: 14.5px; letter-spacing: -0.005em; }
@@ -360,7 +360,7 @@
      it with no way to tap it. */
   .drill-overlay #drillScroll { padding-bottom: 100px; }
   .drill-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; }
-  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 6px; font-family: inherit; }
+  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 14px; font-weight: 700; cursor: pointer; padding: 12px 10px; margin: -12px -10px; font-family: inherit; }
   .drill-head .ttl { font-size: 15px; font-weight: 800; color: var(--ink-hi); }
   .drill-edit-row { display: none; gap: 8px; align-items: center; margin-top: 4px; }
   .drill-edit-row.show { display: flex; }
@@ -374,7 +374,7 @@
   .modal-backdrop.open .modal-box { transform: scale(1); }
   .modal-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 6px; position: sticky; top: 0; background: inherit; }
   .modal-title { font-size: 14.5px; font-weight: 800; color: var(--ink-hi); }
-  .modal-close { background: var(--pill-bg); border: none; width: 26px; height: 26px; border-radius: 50%; color: var(--ink-mid); font-size: 12px; cursor: pointer; }
+  .modal-close { background: var(--pill-bg); border: none; width: 36px; height: 36px; border-radius: 50%; color: var(--ink-mid); font-size: 13px; cursor: pointer; flex-shrink: 0; }
   .modal-body { padding: 4px 16px 18px; display: flex; flex-direction: column; gap: 4px; }
   .modal-amount { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; margin-top: 4px; }
   .modal-amount.in { color: var(--money-1); }
@@ -413,7 +413,12 @@
   .stage-copy { display: none; }
   .device-row { width: 100%; }
   .phone {
-    width: 100vw; height: 100vh; height: 100dvh;
+    /* position:fixed + inset:0 pins this to the exact visual viewport, sidestepping the
+       vh/dvh vs. body's own fixed box mismatches that iOS Safari can produce in standalone
+       mode — those mismatches were the actual cause of the tab bar sitting short of the real
+       bottom edge, not a safe-area padding issue. */
+    position: fixed; inset: 0;
+    width: auto; height: auto;
     max-width: none; max-height: none;
     padding: 0; border-radius: 0; box-shadow: none; background: none;
   }
@@ -1728,6 +1733,41 @@
     $("drillOverlay").classList.add("open");
   }
   function closeDrill() { $("drillOverlay").classList.remove("open"); }
+  /**
+   * Swipe-to-go-back on the category drill-down, matching how it visually entered (sliding in
+   * from the right) — dragging the header rightward follows the finger and, past a distance or
+   * speed threshold, finishes the dismiss the same way tapping "back" does. Scoped to the header
+   * only, so it never competes with vertically scrolling the drill-down's own content.
+   */
+  (function makeDrillDraggable() {
+    var overlay = $("drillOverlay"), head = document.querySelector(".drill-head");
+    var dragging = false, startX = 0, currentX = 0, startTime = 0, overlayWidth = 0;
+    head.addEventListener("touchstart", function (e) {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      startX = currentX = e.touches[0].clientX;
+      startTime = Date.now();
+      overlayWidth = overlay.offsetWidth || 1;
+      overlay.style.transition = "none";
+    }, { passive: true });
+    overlay.addEventListener("touchmove", function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentX = e.touches[0].clientX;
+      var delta = Math.max(0, currentX - startX);
+      overlay.style.transform = "translateX(" + delta + "px)";
+    }, { passive: true });
+    function onEnd(e) {
+      if (!dragging || (e.touches && e.touches.length > 0)) return;
+      dragging = false;
+      overlay.style.transition = "";
+      overlay.style.transform = "";
+      var delta = Math.max(0, currentX - startX);
+      var elapsed = Math.max(1, Date.now() - startTime);
+      if (delta > overlayWidth * 0.28 || delta / elapsed > 0.6) closeDrill();
+    }
+    overlay.addEventListener("touchend", onEnd);
+    overlay.addEventListener("touchcancel", onEnd);
+  })();
   function renderDrill() {
     var cat = findCat(drillState.catId, false);
     var totals = computeTotals(drillState.monthKey);
@@ -2147,6 +2187,45 @@
     applyStoredPosition();
   })();
 
+  /**
+   * Swipe-down-to-dismiss for bottom sheets — dragging from the handle/header follows the
+   * finger in real time and springs back on release, unless the drag went far enough (or fast
+   * enough) to count as an intentional dismiss, matching the native iOS sheet gesture. Scoped
+   * to the handle/header only (never the scrollable body), so it can never fight with normal
+   * scrolling of the sheet's own content.
+   */
+  function makeSheetDraggable(backdropEl, sheetEl, dragHandleEls, onDismiss) {
+    var dragging = false, startY = 0, currentY = 0, startTime = 0, sheetHeight = 0;
+    function onStart(e) {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      startY = currentY = e.touches[0].clientY;
+      startTime = Date.now();
+      sheetHeight = sheetEl.offsetHeight || 1;
+      sheetEl.style.transition = "none";
+    }
+    function onMove(e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      var delta = Math.max(0, currentY - startY);
+      sheetEl.style.transform = "translateY(" + delta + "px)";
+    }
+    function onEnd(e) {
+      if (!dragging || (e.touches && e.touches.length > 0)) return;
+      dragging = false;
+      sheetEl.style.transition = "";
+      sheetEl.style.transform = "";
+      var delta = Math.max(0, currentY - startY);
+      var elapsed = Math.max(1, Date.now() - startTime);
+      var velocity = delta / elapsed; // px/ms
+      if (delta > sheetHeight * 0.28 || velocity > 0.6) onDismiss();
+    }
+    dragHandleEls.forEach(function (el) { el.addEventListener("touchstart", onStart, { passive: true }); });
+    sheetEl.addEventListener("touchmove", onMove, { passive: true });
+    sheetEl.addEventListener("touchend", onEnd);
+    sheetEl.addEventListener("touchcancel", onEnd);
+  }
+
   /* =====================================================================
    * FAB tap + add/edit transaction sheet
    * ===================================================================== */
@@ -2161,6 +2240,12 @@
     this.classList.remove("open");
     openSheet(opt.getAttribute("data-type") === "income");
   });
+  makeSheetDraggable(
+    $("fabSheetBackdrop"),
+    $("fabSheetBackdrop").querySelector(".sheet"),
+    [$("fabSheetBackdrop").querySelector(".sheet-handle")],
+    function () { $("fabSheetBackdrop").classList.remove("open"); }
+  );
 
   var sheetState = { isIncome: false, cat: null, type: "oneTime", editCtx: null };
   var backdrop = $("sheetBackdrop");
@@ -2197,6 +2282,12 @@
     setTimeout(function () { $("amountInput").focus(); }, 320);
   }
   function closeSheet() { backdrop.classList.remove("open"); }
+  makeSheetDraggable(
+    backdrop,
+    backdrop.querySelector(".sheet"),
+    [backdrop.querySelector(".sheet-handle"), backdrop.querySelector(".sheet-head")],
+    closeSheet
+  );
   function openEditSheet(monthKey, txId) {
     var data = ensureMonth(monthKey);
     var tx = data.items.find(function (t) { return t.id === txId; });
