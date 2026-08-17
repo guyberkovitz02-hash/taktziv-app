@@ -25,6 +25,23 @@
 <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+
+<script>
+  // The single most reliable source of the TRUE viewport height on iOS — vh/dvh/inset:0 have
+  // all shown real-device mismatches against the actual rendered height in standalone (home
+  // screen) mode, but window.innerHeight never lies about it. Runs before first paint and on
+  // every resize (rotation, keyboard, status bar changes) so nothing is ever a stale value.
+  (function () {
+    function setRealVH() {
+      document.documentElement.style.setProperty("--real-vh", window.innerHeight + "px");
+    }
+    setRealVH();
+    window.addEventListener("resize", setRealVH);
+    window.addEventListener("orientationchange", setRealVH);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", setRealVH);
+  })();
+</script>
+
 <style>
   @font-face {
     font-family: 'Rubik';
@@ -61,6 +78,7 @@
      the whole document on iOS and exposes blank space behind it instead of app content. */
   html {
     height: 100%;
+    height: var(--real-vh, 100%);
     overflow: hidden;
     overscroll-behavior: none;
     touch-action: manipulation; /* blocks pinch-zoom and double-tap-zoom at the gesture level */
@@ -70,6 +88,7 @@
     touch-action: manipulation;
     margin: 0;
     height: 100%;
+    height: var(--real-vh, 100%);
     position: fixed;
     inset: 0;
     overflow: hidden;
@@ -418,7 +437,7 @@
        mode — those mismatches were the actual cause of the tab bar sitting short of the real
        bottom edge, not a safe-area padding issue. */
     position: fixed; inset: 0;
-    width: auto; height: auto;
+    width: auto; height: 100%; height: var(--real-vh, 100dvh);
     max-width: none; max-height: none;
     padding: 0; border-radius: 0; box-shadow: none; background: none;
   }
