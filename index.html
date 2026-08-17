@@ -33,9 +33,24 @@
   // every resize (rotation, keyboard, status bar changes) so nothing is ever a stale value.
   (function () {
     function setRealVH() {
-      document.documentElement.style.setProperty("--real-vh", window.innerHeight + "px");
+      var px = window.innerHeight + "px";
+      document.documentElement.style.setProperty("--real-vh", px);
+      // Belt and suspenders: also set the height directly as an inline style once .phone exists
+      // (it doesn't yet on the very first call, before <body> has parsed — later re-checks catch
+      // it). Inline styles always win the cascade outright, so this can't lose to any
+      // specificity/ordering surprise the way a var() fallback theoretically could.
+      var phone = document.querySelector(".phone");
+      if (phone) { phone.style.height = px; }
+      if (document.body) { document.body.style.height = px; }
     }
     setRealVH();
+    // In standalone iOS mode, the safe-area/status-bar geometry can settle a moment AFTER this
+    // very first synchronous read — re-checking a few times right after load catches that
+    // without waiting on an actual resize event, which may never fire if nothing else changes.
+    document.addEventListener("DOMContentLoaded", setRealVH);
+    window.addEventListener("load", setRealVH);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") setRealVH(); });
+    [100, 300, 800, 1500].forEach(function (ms) { setTimeout(setRealVH, ms); });
     window.addEventListener("resize", setRealVH);
     window.addEventListener("orientationchange", setRealVH);
     if (window.visualViewport) window.visualViewport.addEventListener("resize", setRealVH);
@@ -2555,9 +2570,29 @@
   // Registers the offline cache. Runs after everything else so a slow or failed registration
   // never delays the app itself from becoming interactive — the app already works standalone
   // from the first load; this just makes every load after the first work with zero network too.
+  //
+  // A standalone home-screen app can stay resident in memory for a long time (iOS suspends
+  // rather than fully closing it), so simply bumping the service worker's cache version isn't
+  // enough on its own — the OLD version keeps running until something reloads it. This listener
+  // is that something: the instant a newly-activated service worker takes over, the page reloads
+  // itself once, so "close the app fully and reopen it" is no longer something the user has to
+  // remember to do for a fix to actually show up.
   if ("serviceWorker" in navigator) {
+    var swRefreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (swRefreshing) return;
+      swRefreshing = true;
+      window.location.reload();
+    });
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("service-worker.js").catch(function () { /* offline caching just won't be available this run */ });
+      navigator.serviceWorker.register("service-worker.js").then(function (reg) {
+        // iOS suspends a standalone app instead of closing it, so "reopening" from the home
+        // screen is often just resuming an old in-memory instance rather than a fresh load —
+        // this is what actually notices an update exists in that case, not just cold starts.
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") reg.update();
+        });
+      }).catch(function () { /* offline caching just won't be available this run */ });
     });
   }
 </script>
