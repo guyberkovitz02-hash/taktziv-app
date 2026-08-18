@@ -589,10 +589,13 @@
   /* No internal scrolling — the sheet grows to fit its content (up to the full screen height)
      instead, so everything is visible at once the moment it rises up. */
   .sheet-body { overflow-y: visible; padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 12px; }
-  /* The add/edit sheet in particular has the most fields of any sheet, so it gets a few extra
-     points shaved off spacing that's generous elsewhere — still comfortably tappable, just
-     tight enough that even a compact phone shows every field without scrolling. */
-  #sheetBackdrop .sheet-body { gap: 7px; padding-bottom: 10px; }
+  /* The add/edit sheet is a full screen of its own (see the #sheetBackdrop .sheet block below),
+     not a bottom sheet — so unlike the FAB picker/quick-actions sheets, its body DOES scroll.
+     In the resting state (keyboard closed) everything already fits with nothing to scroll to —
+     the compacted spacing below still guarantees that — so this only ever engages once the
+     keyboard actually shrinks the visible area, at which point the keyboard-avoidance script
+     further down needs a real scroll container to bring the focused field above the keyboard. */
+  #sheetBackdrop .sheet-body { gap: 7px; padding-bottom: 10px; overflow-y: auto; overscroll-behavior: none; -webkit-overflow-scrolling: touch; }
   #sheetBackdrop .amount-field { padding: 6px 4px; }
   #sheetBackdrop .text-field { padding: 8px 13px; }
   #sheetBackdrop .sheet-handle { margin: 6px auto 3px; }
@@ -607,7 +610,15 @@
      (border, header wash, amount field, save button) adopts that specific category's own color
      via --sheet-accent, set from JS in renderSheetCats/updateSheetAccent. */
   #sheetBackdrop { --sheet-accent: var(--ink-dim); }
-  #sheetBackdrop .sheet { border-top-color: color-mix(in srgb, var(--sheet-accent) 50%, var(--glass-border-strong)); }
+  /* Unlike the FAB picker/quick-actions sheets (still real bottom sheets), the add/edit sheet
+     takes over the whole screen — "top: 0" turns the shared bottom-sheet box into a full-height
+     one, and the square corners match the other full-screen overlays (.drill-overlay,
+     #panel-budget) instead of looking like a card peeking up from the bottom. It still enters
+     by rising from the bottom, but with a bit of scale + fade layered on top of the plain slide
+     — and a spring that overshoots slightly before settling — for an entrance with some life to
+     it; closing (the plain, non-.open transition below) stays quick and linear on the way out. */
+  #sheetBackdrop .sheet { top: 0; border-radius: 0; border-top: none; transform: translateY(100%) scale(0.94); opacity: 0; transition: transform 0.3s cubic-bezier(.4,0,1,1), opacity 0.22s ease; }
+  #sheetBackdrop.open .sheet { transform: translateY(0) scale(1); opacity: 1; transition: transform 0.48s cubic-bezier(0.34,1.56,0.64,1), opacity 0.32s ease-out; }
   #sheetBackdrop .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--sheet-accent) 14%, transparent), transparent); }
   /* Without a scrollbar to fall back on, the category/payment pickers need to be compact enough
      that a full grid always fits on one screen alongside every other field below it — five
@@ -720,7 +731,11 @@
      position:absolute;inset:0 overlay (not a .panel), so its header never got ANY safe-area-top
      clearance at all and sat right under the notch/Dynamic Island, with its "back" button
      partly behind it and effectively untappable. */
-  .navbar, .navbar-row, .drill-head { padding-top: max(calc(4px + env(safe-area-inset-top, 0px)), 54px); }
+  /* #sheetBackdrop .sheet-head joined this list once the add/edit sheet became a full-screen
+     overlay of its own — same reasoning as .drill-head above: it now sits right under the
+     notch/Dynamic Island and needs the same clearance. The FAB picker/quick-actions sheets stay
+     real bottom sheets and are deliberately left out of this list. */
+  .navbar, .navbar-row, .drill-head, #sheetBackdrop .sheet-head { padding-top: max(calc(4px + env(safe-area-inset-top, 0px)), 54px); }
   /* Home and Settings have no back/add button, so they carry no .navbar bar at all any more —
      their .scroll is the panel's first child directly, and picks up the same safe-area
      clearance on its own top padding instead of through an otherwise-empty bar above it. */
@@ -3463,6 +3478,46 @@
   on("sheetCancel", "click", requestCloseSheet);
   on("sheetBackdrop", "click", function (e) { if (e.target === this) requestCloseSheet(); });
   makeSheetSwipeDown(backdrop.querySelector(".sheet"), [backdrop.querySelector(".sheet-handle"), backdrop.querySelector(".sheet-head")], requestCloseSheet);
+
+  /**
+   * Keyboard-avoidance for the now full-screen add/edit sheet. The on-screen keyboard shrinks
+   * window.visualViewport.height by roughly its own height but leaves window.innerHeight alone —
+   * and iOS Safari, especially in standalone PWA mode inside this app's position:fixed layout
+   * (see the viewport bug saga elsewhere in this file), doesn't reliably scroll a focused field
+   * clear of it on its own. So this does it by hand: a spacer at the bottom of the sheet grows to
+   * match the keyboard's height, giving the now-scrollable .sheet-body real room to actually
+   * bring the focused field above the keyboard instead of stopping short at its own last field.
+   */
+  (function () {
+    var kbSpacer = null;
+    function spacer() {
+      if (!kbSpacer) {
+        kbSpacer = document.createElement("div");
+        kbSpacer.id = "sheetKeyboardSpacer";
+        kbSpacer.style.cssText = "flex-shrink:0; height:0; transition:height 0.2s ease;";
+        backdrop.querySelector(".sheet-body").appendChild(kbSpacer);
+      }
+      return kbSpacer;
+    }
+    var focusedEl = null;
+    function scrollFocusedIntoView() {
+      if (focusedEl && backdrop.classList.contains("open")) focusedEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    backdrop.addEventListener("focusin", function (e) {
+      if (e.target.tagName !== "INPUT") return;
+      focusedEl = e.target;
+      setTimeout(scrollFocusedIntoView, 80);
+    });
+    backdrop.addEventListener("focusout", function () { focusedEl = null; });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", function () {
+        if (!backdrop.classList.contains("open")) return;
+        var kbHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+        spacer().style.height = kbHeight + "px";
+        if (focusedEl) setTimeout(scrollFocusedIntoView, 60);
+      });
+    }
+  })();
 
   function doSave() {
     var amount = parseFloat($("amountInput").value);
