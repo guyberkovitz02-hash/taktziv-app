@@ -901,7 +901,7 @@
       { id: "food", name: "מזון וסופר", icon: "🛒", color: "#F4A65E", custom: false },
       { id: "transport", name: "תחבורה ורכב", icon: "🚗", color: "#56D2C9", custom: false },
       { id: "health", name: "בריאות", icon: "🩺", color: "#4FC3E8", custom: false },
-      { id: "subs", name: "מנויים דיגיטל", icon: "🔁", color: "#9B9FC9", custom: false },
+      { id: "subs", name: "מנויים דיגיטליים", icon: "🔁", color: "#9B9FC9", custom: false },
       { id: "shopping", name: "קניות אישיות", icon: "👜", color: "#6FD98A", custom: false },
       { id: "fun", name: "בילויים ופנאי", icon: "🍿", color: "#E88CD0", custom: false },
       { id: "events", name: "אירועים ומתנות", icon: "🎁", color: "#F48CB0", custom: false },
@@ -987,7 +987,11 @@
   // Bridge functions the cloud-backup script (loaded separately, has no access to this closure's
   // `state`) calls into. Kept to exactly the three things it actually needs.
   window.__getAppState = function () { return state; };
-  window.__hasLocalData = function () { return !!Storage.load(); };
+  // Deliberately NOT "does localStorage have anything" — bootstrap() always writes seed data
+  // synchronously on first load, well before this is ever checked (it's only read later, async,
+  // once cloud auth resolves), so a raw Storage.load() check would already see that seed data
+  // and never offer a restore on a genuinely new device. justSeeded is what's actually meant.
+  window.__hasLocalData = function () { return !justSeeded; };
   window.__offerCloudRestore = function (cloudData) { confirmRestore(cloudData); };
 
   /** Brief shake to flag an invalid field without a jarring alert. */
@@ -1015,6 +1019,12 @@
     }, 2500);
   }
 
+  // True only when THIS load found no prior local data at all and had to fall back to the demo
+  // seed — i.e. "this looks like a genuinely new device," which is exactly (and only) when a
+  // cloud-restore offer should be allowed to interrupt with a prompt. Once real data exists
+  // locally (the normal case on every return visit), a cloud backup is never offered
+  // automatically — restoring is always the user's own explicit choice via the Settings screen.
+  var justSeeded = false;
   function bootstrap() {
     var saved = Storage.load();
     if (saved && saved.months) {
@@ -1025,6 +1035,7 @@
     } else {
       // A brand-new install should always open on the real current month, not a date frozen
       // at whenever this demo happened to be built — the seed data itself stays put as history.
+      justSeeded = true;
       var today = todayMonthKey();
       state.currentMonth = today;
       state.budgetMonth = today;
@@ -2219,6 +2230,7 @@
       if (!looksValid) { showToast("⚠️ הקובץ שנבחר אינו קובץ גיבוי תקין"); return; }
       confirmRestore(parsed);
     };
+    reader.onerror = function () { showToast("⚠️ לא הצלחנו לקרוא את הקובץ שנבחר"); };
     reader.readAsText(file);
   });
 
@@ -2233,7 +2245,13 @@
       "</div></div>";
     Modal.open(html);
     on("confirmRestoreBtn", "click", function () {
-      localStorage.setItem(Storage.KEY, JSON.stringify(parsed));
+      try {
+        localStorage.setItem(Storage.KEY, JSON.stringify(parsed));
+      } catch (err) {
+        Modal.close();
+        showToast("⚠️ השחזור נכשל — אין מקום פנוי באחסון המקומי (או מצב גלישה פרטית)");
+        return;
+      }
       Modal.close();
       location.reload();
     });
@@ -2551,7 +2569,7 @@
       footEl.textContent = "גיבוי הענן טרם הופעל עבור האפליקציה הזו — עד אז הנתונים נשמרים רק על המכשיר. אפשר להשתמש בשיתוף גיבוי ידני למטה בינתיים.";
       return;
     }
-    var statusText = { connecting: "מתחבר…", "offline-app-ready": "מחובר ✓", error: "שגיאת חיבור", disabled: "כבוי" }[info.status] || "—";
+    var statusText = { connecting: "מתחבר…", "connected": "מחובר ✓", error: "שגיאת חיבור", disabled: "כבוי" }[info.status] || "—";
     statusEl.textContent = statusText;
     lastSyncEl.textContent = info.lastSyncAt ? info.lastSyncAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "טרם בוצע";
     footEl.textContent = "הנתונים מגובים אוטומטית לענן ברקע, בנוסף לשמירה המקומית — הגיבוי פרטי למכשיר הזה בלבד ואינו משותף עם מכשירים אחרים.";
@@ -2645,7 +2663,7 @@
 
   var cloudUid = null;
   var cloudSyncTimer = null;
-  var cloudStatus = "disabled"; // disabled | connecting | offline-app-ready | error
+  var cloudStatus = "disabled"; // disabled | connecting | connected | error
 
   function setCloudStatus(status) {
     cloudStatus = status;
@@ -2660,7 +2678,7 @@
       firebase.auth().onAuthStateChanged(function (user) {
         if (!user) return;
         cloudUid = user.uid;
-        setCloudStatus("offline-app-ready");
+        setCloudStatus("connected");
         maybeRestoreFromCloud();
       });
       firebase.auth().signInAnonymously().catch(function () { setCloudStatus("error"); });
@@ -2720,7 +2738,13 @@
   // remember to do for a fix to actually show up.
   if ("serviceWorker" in navigator) {
     var swRefreshing = false;
+    // A brand-new install fires "controllerchange" too — claiming the very first client is not
+    // an update, and reloading right then would just be an unnecessary flash on someone's very
+    // first time opening the app. Only reload when a service worker was ALREADY controlling this
+    // page before this — i.e. an actual new version taking over from an older one.
+    var hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (!hadController) { hadController = true; return; }
       if (swRefreshing) return;
       swRefreshing = true;
       window.location.reload();
@@ -2731,7 +2755,7 @@
         // screen is often just resuming an old in-memory instance rather than a fresh load —
         // this is what actually notices an update exists in that case, not just cold starts.
         document.addEventListener("visibilitychange", function () {
-          if (document.visibilityState === "visible") reg.update();
+          if (document.visibilityState === "visible") reg.update().catch(function () { /* next visibility check will retry */ });
         });
       }).catch(function () { /* offline caching just won't be available this run */ });
     });
