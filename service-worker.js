@@ -1,7 +1,7 @@
 // Bump this on every deploy that changes index.html/manifest/icons — it's what makes the
 // activate handler throw away the old cached shell and adopt the new one. Leaving it unchanged
 // means returning visitors keep seeing yesterday's cached version even after a real update.
-const CACHE_VERSION = "taktziv-shell-v28";
+const CACHE_VERSION = "taktziv-shell-v29";
 
 const APP_SHELL = [
   "./",
@@ -17,21 +17,35 @@ const APP_SHELL = [
   "./icons/icon-512.png"
 ];
 
-// Cloud-backup SDK, cached best-effort and separately from APP_SHELL — cache.addAll() fails
-// entirely if even one URL in it fails, and these are cross-origin, so a single blip fetching
-// them must never be able to take down the app's core offline guarantee.
+// Cloud-backup SDK, cached best-effort and separately from APP_SHELL — a single failed URL here
+// must never be able to fail the whole install and take down the app's core offline guarantee
+// (unlike APP_SHELL below, where every URL failing to cache correctly fails the install).
 const CLOUD_SDK_URLS = [
   "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js",
   "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js",
   "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"
 ];
 
+// cache.addAll()/cache.add() fetch through the browser's ORDINARY HTTP cache by default — which
+// respects the Cache-Control header GitHub Pages serves (max-age=600). That means the very
+// moment this install handler matters most — right after a fresh deploy, when a visitor's
+// browser may well have fetched index.html itself within the last 10 minutes — cache.addAll()
+// could silently pull that STALE, browser-HTTP-cached copy into this brand-new, correctly-
+// versioned cache, even though CACHE_VERSION itself (this file) is always fetched cache-bypassed
+// by spec. The app would then look like it "updated" (new SW, new version string, new build-
+// version display) while actually still serving old markup/CSS/JS underneath. Fetching every
+// APP_SHELL URL manually with {cache:"reload"} forces a real network round-trip that ignores
+// any HTTP cache entirely, so what lands in this cache is always genuinely what's on the server
+// right now.
 self.addEventListener("install", function (event) {
   event.waitUntil(
     caches.open(CACHE_VERSION).then(function (cache) {
-      return cache.addAll(APP_SHELL).then(function () {
+      return Promise.all(APP_SHELL.map(function (url) {
+        return fetch(url, { cache: "reload" }).then(function (response) { return cache.put(url, response); });
+      })).then(function () {
         return Promise.all(CLOUD_SDK_URLS.map(function (url) {
-          return cache.add(url).catch(function () { /* offline-first guarantee only ever covers the core app shell */ });
+          return fetch(url, { cache: "reload" }).then(function (response) { return cache.put(url, response); })
+            .catch(function () { /* offline-first guarantee only ever covers the core app shell */ });
         }));
       });
     })
