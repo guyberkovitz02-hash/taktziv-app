@@ -210,6 +210,7 @@
   .navbar { flex-shrink: 0; padding: 6px 18px 12px; text-align: center; font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
   .navbar-row { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 12px; }
   .navbar-row .navbar-title { font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
+  .navbar-back-btn { background: none; border: none; color: var(--brand-2); font-size: 14px; font-weight: 700; cursor: pointer; padding: 12px 10px; margin: -6px -10px -12px; font-family: inherit; }
 
   .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
   .panel.active { display: flex; }
@@ -268,6 +269,11 @@
   .hero-surplus.warn .amt { color: var(--warn-1); }
   .hero-surplus.over .amt { color: var(--spend-1); }
   .hero-kpis { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; justify-content: flex-end; }
+  /* #heroBalance carries dir="rtl" (for correct bidi punctuation ordering — see its own comment),
+     which flips what "flex-end" means for its flex children: it now points left instead of right.
+     Scoped back to flex-start here so the goal chip stays anchored to the right, matching every
+     other right-aligned element in the card; #netWorthTrend has no such ancestor and is untouched. */
+  #heroBalance .hero-kpis { justify-content: flex-start; }
   .kpi-chip { font-size: 11px; font-weight: 700; padding: 6px 11px; border-radius: 100px; background: var(--pill-bg); color: var(--ink-mid); white-space: nowrap; }
   .kpi-chip.positive { background: color-mix(in srgb, var(--money-1) 16%, transparent); color: var(--money-1); }
   .kpi-chip.negative { background: color-mix(in srgb, var(--spend-1) 16%, transparent); color: var(--spend-1); }
@@ -338,7 +344,7 @@
   .long-press-active { opacity: 0.65; }
   /* An invisible edge-swipe catch-zone on the drill-down, matching where a native push view's
      back gesture starts — lets users swipe back from the screen edge, not just the header bar. */
-  .drill-edge-swipe { position: absolute; top: 0; bottom: 0; right: 0; width: 22px; z-index: 5; }
+  .drill-edge-swipe { position: absolute; top: 0; bottom: 0; right: 0; width: 22px; z-index: 5; touch-action: none; }
 
   /* z-index 45: deliberately ABOVE .drill-overlay (40) so the tab bar stays reachable while a
      category drill-down is open — a real navigational push, not a blocking action, so users
@@ -462,8 +468,13 @@
   .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--screen-g2) 88%, transparent); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%); border-top: 1px solid var(--glass-border-strong); border-radius: 26px 26px 0 0; transform: translateY(100%); transition: transform 0.32s cubic-bezier(.32,.72,0,1); max-height: 88%; display: flex; flex-direction: column; z-index: 71; }
   .sheet-backdrop.open .sheet { transform: translateY(0); }
-  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; }
-  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); }
+  /* touch-action:none on the drag-initiation zones — without it, the browser can hand a touch
+     that starts here off to native panning mid-gesture (it's still inside a page that scrolls
+     elsewhere), which cuts the drag short with an early touchcancel instead of a clean drag-to-
+     dismiss. Taps on buttons inside .sheet-head are untouched — touch-action only governs
+     continuous gestures, not discrete tap/click recognition. */
+  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; touch-action: none; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); touch-action: none; }
   .sheet-head button { background: none; border: none; font-size: 14px; color: var(--brand-2); font-weight: 700; cursor: pointer; padding: 4px; font-family: inherit; }
   .sheet-body { overflow-y: auto; overscroll-behavior: none; padding: 4px 16px 22px; display: flex; flex-direction: column; gap: 18px; }
 
@@ -489,7 +500,9 @@
      without this, the last row of drillTxList would be readable but unreachable, hidden under
      it with no way to tap it. */
   .drill-overlay #drillScroll { padding-bottom: 100px; }
-  .drill-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; }
+  /* touch-action:none so a swipe-back starting on the header or the edge strip is never handed
+     off to native panning mid-gesture (see the matching .sheet-handle comment above). */
+  .drill-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; touch-action: none; }
   .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 14px; font-weight: 700; cursor: pointer; padding: 12px 10px; margin: -12px -10px; font-family: inherit; }
   .drill-head .ttl { font-size: 15px; font-weight: 800; color: var(--ink-hi); }
   .drill-edit-row { display: none; gap: 8px; align-items: center; margin-top: 4px; }
@@ -672,7 +685,11 @@
 
           <!-- BUDGET PLANNING -->
           <div class="panel" id="panel-budget">
-            <div class="navbar">תכנון תקציב</div>
+            <div class="navbar-row">
+              <button id="budgetBackBtn" class="navbar-back-btn">חזרה</button>
+              <span class="navbar-title">תכנון תקציב</span>
+              <span style="width:38px;"></span>
+            </div>
             <div class="scroll" id="budget-scroll">
               <div class="month-switch">
                 <button id="budgetPrevMonth" aria-label="חודש קודם"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L1.5 7.5L8 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -725,7 +742,11 @@
 
           <!-- RECURRING (accordion) -->
           <div class="panel" id="panel-recurring">
-            <div class="navbar">תנועות קבועות</div>
+            <div class="navbar-row">
+              <button class="fab-mini" id="addRecurringBtn" aria-label="הוצאה או הכנסה קבועה חדשה">+</button>
+              <span class="navbar-title">תנועות קבועות</span>
+              <span style="width:32px;"></span>
+            </div>
             <div class="scroll">
               <div class="accordion open" id="accExpense">
                 <button class="accordion-head" data-acc="accExpense">
@@ -734,7 +755,7 @@
                 </button>
                 <div class="accordion-body"><div class="accordion-body-inner" id="recExpenseBody"></div></div>
               </div>
-              <div class="accordion" id="accIncome">
+              <div class="accordion open" id="accIncome">
                 <button class="accordion-head" data-acc="accIncome">
                   <span class="chev">⌄</span>
                   <span class="accordion-title-wrap"><span class="accordion-title">הכנסות קבועות</span><span class="accordion-meta" id="recIncomeMeta"></span></span>
@@ -1742,7 +1763,9 @@
     return budgetRowData(monthKey).reduce(function (s, d) { return s + Math.max(d.spent - d.planned, 0); }, 0);
   }
 
-  /** Compact, remaining-first — for the Home screen's quick-glance widget. */
+  /** Compact, remaining-first — for the Home screen's quick-glance widget. The subtitle leads
+   * with the actual ₪ spent (not the percent alone), and the percent moves beside the progress
+   * bar itself, colored to match it — so the color and the number it explains sit together. */
   function remainingRowsHtml(monthKey) {
     return budgetRowData(monthKey).map(function (d) {
       var remainingText = d.remaining >= 0 ? "נשאר " + fmt(d.remaining) : "חריגה של " + fmt(-d.remaining);
@@ -1751,9 +1774,11 @@
         '<div class="cat-badge" style="background:' + d.cat.color + '22;color:' + d.cat.color + '">' + d.cat.icon + "</div>" +
         '<div style="flex:1;text-align:right;min-width:0;">' +
         '<div style="font-size:13px;font-weight:600;color:var(--ink-hi);">' + escapeHtml(d.cat.name) + "</div>" +
-        '<div style="font-size:11px;color:var(--ink-dim);">' + d.percent + "% נוצל מתוך " + fmt(d.planned) + "</div></div>" +
+        '<div style="font-size:11px;color:var(--ink-dim);">' + fmt(d.spent) + " נוצל מתוך " + fmt(d.planned) + "</div></div>" +
         '<div style="font-size:14.5px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + remainingText + "</div></div>" +
-        '<div class="progress-track" style="margin-top:9px;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div></div>';
+        '<div style="display:flex;align-items:center;gap:8px;margin-top:9px;">' +
+        '<div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div>' +
+        '<span style="font-size:11px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + d.percent + "%</span></div></div>";
     }).join("");
   }
 
@@ -1940,9 +1965,13 @@
   on("heroBalance", "click", goToBudgetTab);
   on("heroBalance", "keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToBudgetTab(); } });
   on("overageBanner", "click", goToBudgetTab);
+  // Budget Planning has no tab-bar icon of its own — it's always reached from Home, so "back"
+  // always means going back there.
+  on("budgetBackBtn", "click", function () { selectTab("home"); });
 
   delegate("legend", ".legend-item", function (el) { openDrill(el.getAttribute("data-cat"), state.currentMonth); });
   delegate("remainingList", ".budget-row", function (el) { openDrill(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
+  onLongPress("remainingList", ".budget-row", function (el) { openDrillEditMode(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
   delegate("txList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
   delegate("drillTxList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
   function quickActionsForTx(el) {
@@ -2038,6 +2067,7 @@
     $("budgetRows").innerHTML = planVsActualRowsHtml(mk);
   }
   delegate("budgetRows", ".budget-row", function (el) { openDrill(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
+  onLongPress("budgetRows", ".budget-row", function (el) { openDrillEditMode(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
 
   on("budgetPrevMonth", "click", function () {
     var next = shiftMonth(state.budgetMonth, -1);
@@ -2090,6 +2120,13 @@
     drillState.catId = catId; drillState.monthKey = monthKey; drillState.editing = false;
     renderDrill();
     $("drillOverlay").classList.add("open");
+  }
+  /** Long-pressing a budget row jumps straight into editing just its planned amount — there's
+   * nothing else worth choosing between here, so it skips the quick-actions menu entirely. */
+  function openDrillEditMode(catId, monthKey) {
+    openDrill(catId, monthKey);
+    drillState.editing = true;
+    renderDrill();
   }
   function closeDrill() { $("drillOverlay").classList.remove("open"); }
   /**
@@ -2761,12 +2798,24 @@
     if (fabDragJustMoved) return;
     $("fabSheetBackdrop").classList.add("open");
   });
+  // The Recurring tab's own "+" reuses this same income/expense picker, then forces the sheet
+  // straight into "recurring" mode — so it only ever creates a standing rule, never a one-time.
+  var forceRecurringNext = false;
+  on("addRecurringBtn", "click", function () {
+    forceRecurringNext = true;
+    $("fabSheetBackdrop").classList.add("open");
+  });
   on("fabSheetBackdrop", "click", function (e) {
-    if (e.target === this) { this.classList.remove("open"); return; }
+    if (e.target === this) { this.classList.remove("open"); forceRecurringNext = false; return; }
     var opt = e.target.closest(".fab-option");
     if (!opt) return;
     this.classList.remove("open");
     openSheet(opt.getAttribute("data-type") === "income");
+    if (forceRecurringNext) {
+      forceRecurringNext = false;
+      var recBtn = document.querySelector('#typeSeg button[data-type="recurring"]');
+      if (recBtn) recBtn.click();
+    }
   });
   makeSheetDraggable(
     $("fabSheetBackdrop"),
@@ -2817,9 +2866,23 @@
    * plain tap is untouched — on release after a successful long-press we swallow the trailing
    * click so the row's normal tap handler doesn't also fire and open the wrong thing.
    */
+  /**
+   * A long-press that fires can still be followed by a stray synthetic "click" the browser
+   * generates from that same physical touch — most often because a touchcancel happened instead
+   * of a clean touchend (the gesture briefly looked like it might be a native scroll before
+   * settling). That click gets retargeted to whatever now sits at the release point, which by
+   * then is the just-opened quick-actions sheet, and would immediately close it again. Swallowing
+   * exactly the next click within a short window closes that gap without risking a genuine,
+   * separate tap the user makes afterward — a real new tap can't physically land this fast.
+   */
+  var suppressNextClick = false;
+  document.addEventListener("click", function (e) {
+    if (suppressNextClick) { suppressNextClick = false; e.preventDefault(); e.stopPropagation(); }
+  }, true);
+
   function onLongPress(containerId, selector, handler) {
     var container = $(containerId);
-    var timer = null, target = null, fired = false, startX = 0, startY = 0;
+    var timer = null, target = null, startX = 0, startY = 0;
     var HOLD_MS = 500, MOVE_TOLERANCE = 10;
     function cancel() {
       clearTimeout(timer);
@@ -2831,13 +2894,14 @@
       var t = e.target.closest(selector);
       if (!t || !container.contains(t) || e.touches.length !== 1) { cancel(); return; }
       target = t;
-      fired = false;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       timer = setTimeout(function () {
-        fired = true;
+        timer = null;
         if (target) target.classList.remove("long-press-active");
         if (navigator.vibrate) navigator.vibrate(12);
+        suppressNextClick = true;
+        setTimeout(function () { suppressNextClick = false; }, 120);
         handler(t);
       }, HOLD_MS);
       setTimeout(function () { if (timer && target === t) t.classList.add("long-press-active"); }, 90);
@@ -2847,10 +2911,7 @@
       var dx = Math.abs(e.touches[0].clientX - startX), dy = Math.abs(e.touches[0].clientY - startY);
       if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) cancel();
     }, { passive: true });
-    container.addEventListener("touchend", function (e) {
-      if (fired) e.preventDefault();
-      cancel();
-    });
+    container.addEventListener("touchend", cancel);
     container.addEventListener("touchcancel", cancel);
   }
 
