@@ -367,6 +367,14 @@
 
   .more-link { text-align: center; font-size: 12px; font-weight: 700; color: var(--brand-2); padding-top: 13px; margin-top: 8px; border-top: 1px solid var(--divider); cursor: pointer; }
 
+  /* Categories with nothing to report (never budgeted, or fully used with nothing left/over) —
+     tucked into a collapsible drawer below the main budget-row list instead of cluttering it. */
+  .hidden-cats-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; text-align: center; font-size: 12px; font-weight: 700; color: var(--brand-2); padding: 13px 0 8px; margin-top: 8px; border-top: 1px solid var(--divider); cursor: pointer; }
+  .hidden-cats-toggle .chev { font-size: 10px; transition: transform 0.25s ease; }
+  .hidden-cats-toggle.open .chev { transform: rotate(180deg); }
+  .hidden-cats-group { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; opacity: 0.85; }
+  .hidden-cats-group.open { max-height: 2000px; }
+
   .chart-row { display: flex; align-items: center; gap: 18px; }
   .legend { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
   .legend-item { display: flex; align-items: center; gap: 8px; justify-content: flex-end; cursor: pointer; padding: 5px 4px; border-radius: 10px; }
@@ -1977,40 +1985,73 @@
     return budgetRowData(monthKey).reduce(function (s, d) { return s + Math.max(d.spent - d.planned, 0); }, 0);
   }
 
+  /**
+   * Orders and splits budgetRowData for display, shared by both the Home widget and Budget
+   * Planning's list so the two never disagree: sorted by how much is left, most remaining first
+   * — which, as a side effect of sorting a signed number, naturally pushes any overage (a
+   * negative "remaining") to the very bottom, right where it should draw the eye, with no
+   * separate rule needed. Categories that have nothing worth reporting — never budgeted at all,
+   * or fully used with nothing left and nothing over — are pulled out into "hidden" instead of
+   * cluttering the main list with rows that say nothing.
+   */
+  function sortedBudgetRows(monthKey) {
+    var visible = [], hidden = [];
+    budgetRowData(monthKey).forEach(function (d) {
+      if (d.planned === 0 || d.remaining === 0) hidden.push(d); else visible.push(d);
+    });
+    visible.sort(function (a, b) { return b.remaining - a.remaining; });
+    return { visible: visible, hidden: hidden };
+  }
+  /** In-memory only (not persisted) — which of the two independent hidden-categories drawers is
+   * currently expanded, so re-rendering after any data change doesn't quietly collapse it again. */
+  var hiddenCatsExpanded = { remaining: false, budget: false };
+  /** Renders the visible rows via `rowRenderer`, then — only if there's anything to hide — a
+   * collapsible drawer of the rest below them, expandable in place via the shared
+   * .hidden-cats-toggle delegate handler further down. */
+  function buildBudgetRowsSection(monthKey, rowRenderer, stateKey) {
+    var split = sortedBudgetRows(monthKey);
+    var html = split.visible.map(function (d) { return rowRenderer(d, monthKey); }).join("");
+    if (split.hidden.length) {
+      var open = hiddenCatsExpanded[stateKey];
+      html += '<div class="hidden-cats-toggle' + (open ? " open" : "") + '" data-state-key="' + stateKey + '">' +
+        '<span class="chev">⌄</span><span>' + (open ? "הסתר קטגוריות ללא יתרה" : "הצג עוד " + split.hidden.length + " קטגוריות ללא יתרה") + "</span></div>" +
+        '<div class="hidden-cats-group' + (open ? " open" : "") + '">' + split.hidden.map(function (d) { return rowRenderer(d, monthKey); }).join("") + "</div>";
+    }
+    return html;
+  }
+
   /** Compact, remaining-first — for the Home screen's quick-glance widget. The subtitle leads
    * with the actual ₪ spent (not the percent alone), and the percent moves beside the progress
    * bar itself, colored to match it — so the color and the number it explains sit together. */
-  function remainingRowsHtml(monthKey) {
-    return budgetRowData(monthKey).map(function (d) {
-      var remainingText = d.remaining >= 0 ? "נשאר " + fmt(d.remaining) : "חריגה של " + fmt(-d.remaining);
-      return '<div class="budget-row" data-cat="' + d.cat.id + '" data-month="' + monthKey + '">' +
-        '<div style="display:flex;align-items:center;gap:11px;">' +
-        '<div class="cat-badge" style="background:' + d.cat.color + '22;color:' + d.cat.color + '">' + d.cat.icon + "</div>" +
-        '<div style="flex:1;text-align:right;min-width:0;">' +
-        '<div style="font-size:13px;font-weight:600;color:var(--ink-hi);">' + escapeHtml(d.cat.name) + "</div>" +
-        '<div style="font-size:11px;color:var(--ink-dim);">' + fmt(d.spent) + " נוצל מתוך " + fmt(d.planned) + "</div></div>" +
-        '<div style="font-size:14.5px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + remainingText + "</div></div>" +
-        '<div style="display:flex;align-items:center;gap:8px;margin-top:9px;">' +
-        '<div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div>' +
-        '<span style="font-size:11px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + d.percent + "%</span></div></div>";
-    }).join("");
+  function renderRemainingRow(d, monthKey) {
+    var remainingText = d.remaining >= 0 ? "נשאר " + fmt(d.remaining) : "חריגה של " + fmt(-d.remaining);
+    return '<div class="budget-row" data-cat="' + d.cat.id + '" data-month="' + monthKey + '">' +
+      '<div style="display:flex;align-items:center;gap:11px;">' +
+      '<div class="cat-badge" style="background:' + d.cat.color + '22;color:' + d.cat.color + '">' + d.cat.icon + "</div>" +
+      '<div style="flex:1;text-align:right;min-width:0;">' +
+      '<div style="font-size:13px;font-weight:600;color:var(--ink-hi);">' + escapeHtml(d.cat.name) + "</div>" +
+      '<div style="font-size:11px;color:var(--ink-dim);">' + fmt(d.spent) + " נוצל מתוך " + fmt(d.planned) + "</div></div>" +
+      '<div style="font-size:14.5px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + remainingText + "</div></div>" +
+      '<div style="display:flex;align-items:center;gap:8px;margin-top:9px;">' +
+      '<div class="progress-track" style="flex:1;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div>' +
+      '<span style="font-size:11px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + d.percent + "%</span></div></div>";
   }
+  function remainingRowsHtml(monthKey) { return buildBudgetRowsSection(monthKey, renderRemainingRow, "remaining"); }
 
   /** Detailed plan-vs-actual — for the Budget Planning tab: actual ₪ spent front and center, percent tucked under the bar. */
-  function planVsActualRowsHtml(monthKey) {
-    return budgetRowData(monthKey).map(function (d) {
-      var remainingText = d.remaining >= 0 ? "נשאר " + fmt(d.remaining) : "חריגה " + fmt(-d.remaining);
-      return '<div class="budget-row" data-cat="' + d.cat.id + '" data-month="' + monthKey + '">' +
-        '<div style="display:flex;align-items:center;gap:11px;">' +
-        '<div class="cat-badge" style="background:' + d.cat.color + '22;color:' + d.cat.color + '">' + d.cat.icon + "</div>" +
-        '<div style="flex:1;text-align:right;min-width:0;">' +
-        '<div style="font-size:13px;font-weight:700;color:var(--ink-hi);">' + escapeHtml(d.cat.name) + "</div>" +
-        '<div style="font-size:11.5px;color:var(--ink-dim);margin-top:1px;">מתוכנן ' + fmt(d.planned) + " · בפועל " + fmt(d.spent) + "</div></div>" +
-        '<div style="font-size:14px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + remainingText + "</div></div>" +
-        '<div class="progress-track" style="margin-top:9px;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div>' +
-        '<div style="text-align:left;font-size:10.5px;color:var(--ink-dim);margin-top:4px;">' + d.percent + "% נוצל</div></div>";
-    }).join("");
+  function renderPlanVsActualRow(d, monthKey) {
+    var remainingText = d.remaining >= 0 ? "נשאר " + fmt(d.remaining) : "חריגה " + fmt(-d.remaining);
+    return '<div class="budget-row" data-cat="' + d.cat.id + '" data-month="' + monthKey + '">' +
+      '<div style="display:flex;align-items:center;gap:11px;">' +
+      '<div class="cat-badge" style="background:' + d.cat.color + '22;color:' + d.cat.color + '">' + d.cat.icon + "</div>" +
+      '<div style="flex:1;text-align:right;min-width:0;">' +
+      '<div style="font-size:13px;font-weight:700;color:var(--ink-hi);">' + escapeHtml(d.cat.name) + "</div>" +
+      '<div style="font-size:11.5px;color:var(--ink-dim);margin-top:1px;">מתוכנן ' + fmt(d.planned) + " · בפועל " + fmt(d.spent) + "</div></div>" +
+      '<div style="font-size:14px;font-weight:800;color:' + d.statusColor + ';white-space:nowrap;">' + remainingText + "</div></div>" +
+      '<div class="progress-track" style="margin-top:9px;"><div class="progress-fill" style="width:' + Math.min(Math.max(d.percent, 0), 100) + "%;background:" + d.statusColor + ';"></div></div>' +
+      '<div style="text-align:left;font-size:10.5px;color:var(--ink-dim);margin-top:4px;">' + d.percent + "% נוצל</div></div>";
   }
+  function planVsActualRowsHtml(monthKey) { return buildBudgetRowsSection(monthKey, renderPlanVsActualRow, "budget"); }
 
   /* =====================================================================
    * Shared transaction-list rendering (tap a row to edit it)
@@ -2196,6 +2237,7 @@
   delegate("legend", ".legend-item", function (el) { openDrill(el.getAttribute("data-cat"), state.currentMonth); });
   delegate("remainingList", ".budget-row", function (el) { openDrill(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
   onLongPress("remainingList", ".budget-row", function (el) { openDrillEditMode(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
+  delegate("remainingList", ".hidden-cats-toggle", function () { hiddenCatsExpanded.remaining = !hiddenCatsExpanded.remaining; renderHome(); });
   delegate("txList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
   delegate("drillTxList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
   function quickActionsForTx(el) {
@@ -2294,6 +2336,7 @@
   }
   delegate("budgetRows", ".budget-row", function (el) { openDrill(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
   onLongPress("budgetRows", ".budget-row", function (el) { openDrillEditMode(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
+  delegate("budgetRows", ".hidden-cats-toggle", function () { hiddenCatsExpanded.budget = !hiddenCatsExpanded.budget; renderBudgetTab(); });
 
   on("budgetPrevMonth", "click", function () {
     var next = shiftMonth(state.budgetMonth, -1);
