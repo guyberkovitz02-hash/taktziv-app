@@ -1380,15 +1380,21 @@
     return { income: income, expense: expense, byCat: byCat, items: data.items };
   }
 
-  function suggestedGoal(income) {
+  /** A blind 15%-of-income target is only meaningful if it's still reachable — on a month that's
+   * already partway spent (chiefly the current, in-progress one), suggesting more than what's
+   * actually left of the income would hand the user a goal that's already broken the moment it's
+   * set. Capping at what's still achievable keeps "✨ הצעה חכמה" honest at any point in the month. */
+  function suggestedGoal(income, committedExpense) {
     if (!income) return 0;
-    return Math.round((income * 0.15) / 50) * 50;
+    var target = Math.round((income * 0.15) / 50) * 50;
+    var feasible = Math.max(0, income - (committedExpense || 0));
+    return Math.min(target, Math.round(feasible / 50) * 50);
   }
-  function ensureMonthlyPlan(monthKey, income) {
+  function ensureMonthlyPlan(monthKey, income, committedExpense) {
     if (state.plans[monthKey]) return state.plans[monthKey];
     var priorKeys = Object.keys(state.plans).filter(function (k) { return k < monthKey; }).sort();
     var carried = priorKeys.length ? state.plans[priorKeys[priorKeys.length - 1]].goal : null;
-    state.plans[monthKey] = { goal: carried != null ? carried : suggestedGoal(income) };
+    state.plans[monthKey] = { goal: carried != null ? carried : suggestedGoal(income, committedExpense) };
     persist();
     return state.plans[monthKey];
   }
@@ -1474,7 +1480,7 @@
   function ensureBudgets(monthKey) {
     if (state.budgets[monthKey]) return state.budgets[monthKey];
     var totals = computeTotals(monthKey);
-    var plan = ensureMonthlyPlan(monthKey, totals.income);
+    var plan = ensureMonthlyPlan(monthKey, totals.income, totals.expense);
     state.budgets[monthKey] = generateSuggestedBudgets(monthKey, totals.income, plan.goal);
     persist();
     return state.budgets[monthKey];
@@ -1818,20 +1824,25 @@
     $("futureMonthNote").style.display = mk > today ? "block" : "none";
     if (isEmptyPast) { $("overageBanner").style.display = "none"; return; }
 
-    var plan = ensureMonthlyPlan(mk, totals.income);
-    var bmap = ensureBudgets(mk);
+    var plan = ensureMonthlyPlan(mk, totals.income, totals.expense);
+    ensureBudgets(mk);
     $("overageBanner").style.display = totalOverage(mk) > 0 ? "flex" : "none";
 
-    // פנוי להוצאה החודש לפי קטגוריות = סכום היתרה שנותרה בכל קטגוריית הוצאה (מתוכנן פחות מה שכבר
-    // הוצא בפועל בה) — התשובה המעודכנת בזמן אמת ל"כמה עוד מותר לי להוציא, קטגוריה-קטגוריה".
-    var remainingInCategories = budgetRowData(mk).reduce(function (s, d) { return s + d.remaining; }, 0);
+    // פנוי להוצאה החודש לפי קטגוריות = סכום היתרה שנותרה בכל קטגוריה שיש לה בפועל תקציב מוגדר
+    // (מתוכנן פחות מה שכבר הוצא בה) — קטגוריה בלי תקציב מוגדר כלל לא אמורה למשוך את המספר הזה
+    // למטה סתם כי הוצאנו בה משהו; היא פשוט לא חלק מ"מה שנשאר בתכנון".
+    var rows = budgetRowData(mk);
+    var definedRows = rows.filter(function (d) { return d.planned > 0; });
+    var remainingInCategories = definedRows.reduce(function (s, d) { return s + d.remaining; }, 0);
     $("heroBalance").classList.toggle("negative", remainingInCategories < 0);
     $("balanceNum").textContent = fmt(remainingInCategories);
 
-    // יתרה עודפת = מה שנשאר מההכנסה אחרי שהוצאות קבועות (כבר משוקללות בתוך התכנון של כל קטגוריה
-    // קבועה), יעד החיסכון וכלל הקטגוריות המתוכננות "תפסו" את חלקן — כסף שעדיין לא הוקצה לשום דבר.
-    var plannedTotal = state.categoriesExpense.reduce(function (s, c) { return s + (bmap[c.id] || 0); }, 0);
-    var extraBeyondPlan = (totals.income - plan.goal) - plannedTotal;
+    // יתרה עודפת = מה שבאמת נשאר פנוי מההכנסה מעבר לתקציב הקטגוריות שכן הוגדרו וליעד החיסכון.
+    // חייבת גם להחסיר הוצאות בקטגוריות שאין להן תקציב מוגדר — אחרת כסף שכבר יצא בפועל היה
+    // "נעלם" מהחישוב הכולל (לא נספר בתקציב, אבל גם לא הוקטן מהעודף), והמספר היה מנופח ולא נכון.
+    var plannedTotal = definedRows.reduce(function (s, d) { return s + d.planned; }, 0);
+    var undefinedSpent = rows.reduce(function (s, d) { return s + (d.planned > 0 ? 0 : d.spent); }, 0);
+    var extraBeyondPlan = (totals.income - plan.goal) - plannedTotal - undefinedSpent;
 
     var surplusEl = $("heroSurplus");
     surplusEl.classList.remove("warn", "over");
@@ -1940,7 +1951,7 @@
     if (isEmptyPast) { $("sumOverageRow").style.display = "none"; return; }
 
     var bmap = ensureBudgets(mk);
-    var plan = ensureMonthlyPlan(mk, totals.income);
+    var plan = ensureMonthlyPlan(mk, totals.income, totals.expense);
 
     $("goalInput").value = Math.round(plan.goal);
 
@@ -2001,8 +2012,8 @@
   });
   on("smartSuggestBtn", "click", function () {
     var totals = computeTotals(state.budgetMonth);
-    var goalVal = suggestedGoal(totals.income);
-    ensureMonthlyPlan(state.budgetMonth, totals.income);
+    var goalVal = suggestedGoal(totals.income, totals.expense);
+    ensureMonthlyPlan(state.budgetMonth, totals.income, totals.expense);
     state.plans[state.budgetMonth].goal = goalVal;
     propagateGoalChange(state.budgetMonth, goalVal);
     state.budgets[state.budgetMonth] = generateSuggestedBudgets(state.budgetMonth, totals.income, goalVal);
