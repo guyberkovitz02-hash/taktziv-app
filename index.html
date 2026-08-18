@@ -436,6 +436,9 @@
   .text-field { border: 1px solid var(--glass-border); border-radius: 13px; padding: 11px 13px; font-size: 14px; text-align: right; background: var(--pill-bg); color: var(--ink-hi); outline: none; direction: rtl; font-family: inherit; width: 100%; }
 
   .hint { font-size: 12px; color: var(--ink-dim); text-align: right; line-height: 1.55; }
+  .auto-tag { font-size: 10px; font-weight: 700; color: var(--ink-dim); background: var(--pill-bg); padding: 2px 7px; border-radius: 100px; white-space: nowrap; }
+  .auto-credit-toggle { align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--ink-mid); cursor: pointer; }
+  .auto-credit-toggle input { width: 18px; height: 18px; accent-color: var(--brand-1); flex-shrink: 0; }
   .save-btn { border: none; border-radius: 14px; padding: 14px 0; font-size: 14.5px; font-weight: 700; color: #fff; cursor: pointer; background: linear-gradient(135deg, var(--money-1), var(--money-2)); box-shadow: 0 14px 26px -12px rgba(61,242,166,0.5); font-family: inherit; }
   .delete-btn { border: none; background: none; color: var(--spend-1); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; padding: 4px; font-family: inherit; }
   .toast-note { max-width: 375px; text-align: center; font-size: 12px; color: var(--ink-mid); line-height: 1.6; }
@@ -589,8 +592,8 @@
                     <div class="stat-icon expense"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 20V4M12 4L6 10M12 4L18 10" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
                     <div class="cap">הוצאות</div>
                     <div class="stat-breakdown">
-                      <div class="stat-line"><span class="stat-line-val" id="expenseOneTimeNum">₪0</span><span class="stat-line-label">חד־פעמיות</span></div>
                       <div class="stat-line"><span class="stat-line-val" id="expenseFixedNum">₪0</span><span class="stat-line-label">קבועות</span></div>
+                      <div class="stat-line"><span class="stat-line-val" id="expenseOneTimeNum">₪0</span><span class="stat-line-label">חד־פעמיות</span></div>
                       <div class="stat-divider"></div>
                       <div class="stat-line total"><span class="stat-line-val" id="expenseNum">₪0</span><span class="stat-line-label">סה"כ</span></div>
                     </div>
@@ -834,7 +837,7 @@
           <button class="tab-btn" data-tab="recurring"><svg viewBox="0 0 24 24" fill="none"><path d="M5 8H16C17.6569 8 19 9.34315 19 11V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 5L19.5 8L16 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 16H8C6.34315 16 5 14.6569 5 13V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M8 19L4.5 16L8 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>קבועות</button>
           <button class="tab-btn" data-tab="categories"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>קטגוריות</button>
           <div class="tab-home-spacer"></div>
-          <button class="tab-btn" data-tab="networth"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16L10 10L14 14L20 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 6H20V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>עושר</button>
+          <button class="tab-btn" data-tab="networth"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16L10 10L14 14L20 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 6H20V12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>שווי נקי</button>
           <button class="tab-btn" data-tab="settings"><svg viewBox="0 0 24 24" fill="none"><line x1="5" y1="7" x2="19" y2="7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="5" y1="17" x2="19" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="9" cy="7" r="2" fill="var(--screen-g1)" stroke="currentColor" stroke-width="1.8"/><circle cx="16" cy="12" r="2" fill="var(--screen-g1)" stroke="currentColor" stroke-width="1.8"/><circle cx="10" cy="17" r="2" fill="var(--screen-g1)" stroke="currentColor" stroke-width="1.8"/></svg>הגדרות</button>
         </div>
         <button class="tab-home active" id="tabHomeBtn" aria-label="בית"><svg viewBox="0 0 24 24" fill="none"><path d="M4 11L12 4L20 11" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 10V20H18V10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -890,6 +893,12 @@
               <div style="display:none; flex-direction:column; gap:8px;" id="recurringDayWrap">
                 <div class="field-label">באיזה יום בחודש?</div>
                 <select class="text-field" id="recurringDayInput" style="text-align:center;"></select>
+              </div>
+              <div style="display:none; flex-direction:column; gap:8px;" id="installmentsWrap">
+                <div class="field-label">מספר תשלומים</div>
+                <select class="text-field" id="installmentsInput" style="text-align:center;"></select>
+                <input type="text" inputmode="numeric" class="text-field" id="installmentsCustomInput" placeholder="הזינו מספר תשלומים (עד 60)" style="display:none;" />
+                <div class="hint" id="installmentsHint" style="display:none;">אחרי מספר התשלומים הזה, ההוצאה תפסיק להופיע אוטומטית.</div>
               </div>
               <div class="hint" id="recurringEditHint" style="display:none;">זו תנועה קבועה — שינוי הסכום יעודכן אוטומטית גם בחודשים הבאים.</div>
               <button class="save-btn" id="sheetSaveBig">שמור</button>
@@ -993,7 +1002,7 @@
       { id: "a2", name: "תיק השקעות", amount: 62000, type: "asset" },
       { id: "a3", name: "חיסכון", amount: 25000, type: "asset" },
       { id: "a4", name: "הלוואת רכב", amount: 34000, type: "liability" },
-      { id: "a5", name: "יתרת כרטיס אשראי", amount: 3200, type: "liability" }
+      { id: "a5", name: "יתרת כרטיס אשראי", amount: 3200, type: "liability", autoCredit: true }
     ];
   }
 
@@ -1183,6 +1192,36 @@
     return "כל " + d + " לחודש" + ((s > 1 && d < s) ? " · במחזור הבא" : "");
   }
 
+  /* =====================================================================
+   * INSTALLMENT PLANS — a recurring rule can either run forever (template.installments == null,
+   * the original behavior) or for a fixed number of payments starting from template.startMonth.
+   * Every function below is pure math on those two fields; the generation/propagation functions
+   * further down are what actually use it to decide whether a given month gets an instance.
+   * ===================================================================== */
+  function monthDiff(fromKey, toKey) {
+    var fp = fromKey.split("-"), tp = toKey.split("-");
+    return (+tp[0] - +fp[0]) * 12 + (+tp[1] - +fp[1]);
+  }
+  /** Which payment number (1-based) a given cycle represents in the plan — e.g. the 3rd of 12. */
+  function installmentNumberFor(template, monthKey) {
+    if (!template.startMonth) return 1; // legacy templates predating this field — always "in range"
+    return monthDiff(template.startMonth, monthKey) + 1;
+  }
+  /** Whether the plan is still active for that specific month — unlimited plans always are. */
+  function isWithinInstallmentPlan(template, monthKey) {
+    if (template.installments == null) return true;
+    var n = installmentNumberFor(template, monthKey);
+    return n >= 1 && n <= template.installments;
+  }
+  /** How much of the plan is still left to pay, counting the current cycle's own payment —
+   * this is what Net Worth treats as the outstanding liability for an installment expense. */
+  function remainingInstallmentBalance(template) {
+    if (template.installments == null) return 0;
+    var current = installmentNumberFor(template, todayMonthKey());
+    var remaining = template.installments - current + 1;
+    return Math.max(0, Math.min(remaining, template.installments));
+  }
+
   /**
    * A fixed category's plan must always mirror what's actually committed — keep every already-
    * generated month's BUDGET in sync with the live recurring totals, not just its transactions.
@@ -1238,15 +1277,41 @@
   }
 
   /** Reactivating a rule fills it back into every already-generated current-or-future month
-   * that's missing an instance for it, mirroring what normal generation would have produced. */
+   * that's missing an instance for it (and is still within its installment plan, if it has one),
+   * mirroring what normal generation would have produced. */
   function addRecurringInstancesForward(template) {
     var cutoff = todayMonthKey();
     Object.keys(state.months).forEach(function (mk) {
       if (mk < cutoff) return;
+      if (!isWithinInstallmentPlan(template, mk)) return;
       var already = state.months[mk].items.some(function (t) { return t.recurringId === template.id; });
       if (already) return;
       var resolved = resolveCycleDay(mk, template.day);
       state.months[mk].items.push(makeTx(template.isIncome, template.cat, template.amount, resolved.day, "", template.id, resolved.month, template.paymentMethod));
+    });
+    syncFixedBudgetsForward();
+  }
+
+  /**
+   * Changing how many payments a plan has isn't like the other recurring edits — it doesn't just
+   * update fields on instances that already exist, it can change WHICH months should have an
+   * instance at all: extending the plan needs to backfill months that were previously beyond its
+   * end, shortening it needs to remove months that no longer qualify. Past months are never
+   * touched either way, same as every other standing-decision propagation in this app.
+   */
+  function applyInstallmentsChange(template, newInstallments) {
+    template.installments = newInstallments;
+    var cutoff = todayMonthKey();
+    Object.keys(state.months).forEach(function (mk) {
+      if (mk < cutoff) return;
+      var hasInstance = state.months[mk].items.some(function (t) { return t.recurringId === template.id; });
+      var inRange = isWithinInstallmentPlan(template, mk);
+      if (inRange && !hasInstance) {
+        var resolved = resolveCycleDay(mk, template.day);
+        state.months[mk].items.push(makeTx(template.isIncome, template.cat, template.amount, resolved.day, "", template.id, resolved.month, template.paymentMethod));
+      } else if (!inRange && hasInstance) {
+        state.months[mk].items = state.months[mk].items.filter(function (t) { return t.recurringId !== template.id; });
+      }
     });
     syncFixedBudgetsForward();
   }
@@ -1269,6 +1334,7 @@
     if (monthKey >= todayMonthKey()) {
       state.recurring.forEach(function (r) {
         if (!r.active) return;
+        if (!isWithinInstallmentPlan(r, monthKey)) return;
         var resolved = resolveCycleDay(monthKey, r.day);
         items.push(makeTx(r.isIncome, r.cat, r.amount, resolved.day, "", r.id, resolved.month, r.paymentMethod));
       });
@@ -1424,6 +1490,18 @@
     var cat = findCat(r.cat, r.isIncome);
     var dayOptions = "";
     for (var d = 1; d <= 31; d++) dayOptions += '<option value="' + d + '"' + (d === r.day ? " selected" : "") + ">" + dayOptionLabel(d) + "</option>";
+    var curInstallments = r.installments != null ? r.installments : null;
+    var installmentsSelectVal = curInstallments == null ? "unlimited" : (curInstallments <= 60 ? String(curInstallments) : "custom");
+    var installmentsOptions = '<option value="unlimited"' + (installmentsSelectVal === "unlimited" ? " selected" : "") + ">ללא הגבלה</option>";
+    for (var n = 1; n <= 60; n++) {
+      installmentsOptions += '<option value="' + n + '"' + (installmentsSelectVal === String(n) ? " selected" : "") + ">" + (n === 1 ? "תשלום אחד" : n + " תשלומים") + "</option>";
+    }
+    installmentsOptions += '<option value="custom"' + (installmentsSelectVal === "custom" ? " selected" : "") + ">מספר אחר…</option>";
+    var installmentsField = r.isIncome ? "" :
+      '<div class="field-label" style="margin-top:14px;">מספר תשלומים</div>' +
+      '<select class="text-field" id="recModalInstallments" style="text-align:center;">' + installmentsOptions + "</select>" +
+      '<input type="text" inputmode="numeric" id="recModalInstallmentsCustom" placeholder="הזינו מספר תשלומים (עד 60)" class="text-field" style="margin-top:8px; text-align:center; display:' + (installmentsSelectVal === "custom" ? "block" : "none") + ';" value="' + (installmentsSelectVal === "custom" ? curInstallments : "") + '" />' +
+      '<div class="hint" style="margin-top:6px; display:' + (installmentsSelectVal !== "unlimited" && installmentsSelectVal !== "1" ? "block" : "none") + ';" id="recModalInstallmentsHint">התנועה תפסיק להופיע אוטומטית בתום מספר התשלומים.</div>';
     var html =
       '<div class="modal-head"><span class="modal-title">' + cat.icon + " " + escapeHtml(r.title) + '</span><button class="modal-close" data-close>✕</button></div>' +
       '<div class="modal-body">' +
@@ -1433,6 +1511,7 @@
       '<div class="amount-field" style="border:none;padding:4px 0;"><span class="sym">₪</span><input type="text" inputmode="decimal" id="recModalAmount" value="' + r.amount + '" style="font-size:22px;" /></div>' +
       '<div class="field-label" style="margin-top:14px;">באיזה יום בחודש</div>' +
       '<select class="text-field" id="recModalDay" style="text-align:center;">' + dayOptions + "</select>" +
+      installmentsField +
       '<div class="hint" style="margin-top:8px;">שינוי כאן יעודכן אוטומטית גם בחודשים הבאים שכבר נוצרו.</div>' +
       '<div class="modal-actions">' +
       '<button class="modal-btn primary" id="recModalSave">שמור שינויים</button>' +
@@ -1440,6 +1519,13 @@
       '<button class="modal-btn danger" id="recModalDelete">מחק לצמיתות</button>' +
       "</div></div>";
     Modal.open(html);
+    if (!r.isIncome) {
+      on("recModalInstallments", "change", function () {
+        $("recModalInstallmentsCustom").style.display = this.value === "custom" ? "block" : "none";
+        $("recModalInstallmentsHint").style.display = (this.value !== "unlimited" && this.value !== "1") ? "block" : "none";
+        if (this.value === "custom") $("recModalInstallmentsCustom").focus();
+      });
+    }
     on("recModalSave", "click", function () {
       var val = parseFloat($("recModalAmount").value);
       var day = parseInt($("recModalDay").value, 10);
@@ -1447,6 +1533,19 @@
       r.amount = val;
       r.day = day;
       propagateRecurringChange(r.id, { amount: val, day: day });
+      if (!r.isIncome) {
+        var iRaw = $("recModalInstallments").value;
+        var newInstallments;
+        if (iRaw === "unlimited") newInstallments = null;
+        else if (iRaw === "custom") {
+          var cn = parseInt($("recModalInstallmentsCustom").value, 10);
+          newInstallments = (!cn || cn < 1) ? 1 : Math.min(cn, 60);
+        } else {
+          newInstallments = parseInt(iRaw, 10) || 1;
+        }
+        if (!r.startMonth) r.startMonth = todayMonthKey();
+        if (r.installments !== newInstallments) applyInstallmentsChange(r, newInstallments);
+      }
       persist();
       Modal.close();
       renderRecurring();
@@ -2003,9 +2102,36 @@
   /* =====================================================================
    * RENDER: Net worth (assets, liabilities, trend, recommendations)
    * ===================================================================== */
+  /** This month's card spending — the live default for any liability account marked
+   * "calculated automatically from credit", read fresh every render so it never drifts out of
+   * sync with what's actually been charged to the card this month. */
+  function creditExpenseTotalForMonth(monthKey) {
+    var data = state.months[monthKey];
+    if (!data) return 0;
+    return data.items.filter(function (t) { return !t.isIncome && t.paymentMethod === "credit"; })
+      .reduce(function (s, t) { return s + t.amount; }, 0);
+  }
+  function effectiveAccountAmount(acct) {
+    return acct.autoCredit ? creditExpenseTotalForMonth(todayMonthKey()) : acct.amount;
+  }
+  /** Every active installment plan implies a liability the user never has to enter by hand —
+   * the remaining balance is just what's left to pay, always derived fresh from the plan itself
+   * so it can never silently drift out of sync with the recurring rule that defines it. */
+  function installmentLiabilities() {
+    return state.recurring.filter(function (r) {
+      return !r.isIncome && r.active && r.installments != null;
+    }).map(function (r) {
+      var remainingCount = remainingInstallmentBalance(r);
+      return { id: r.id, name: r.title, amount: remainingCount * r.amount, remainingCount: remainingCount };
+    }).filter(function (x) { return x.remainingCount > 0; });
+  }
   function netWorthTotals() {
-    var assets = state.netWorth.accounts.filter(function (a) { return a.type === "asset"; }).reduce(function (s, a) { return s + a.amount; }, 0);
-    var liabilities = state.netWorth.accounts.filter(function (a) { return a.type === "liability"; }).reduce(function (s, a) { return s + a.amount; }, 0);
+    var assets = state.netWorth.accounts.filter(function (a) { return a.type === "asset"; })
+      .reduce(function (s, a) { return s + effectiveAccountAmount(a); }, 0);
+    var manualLiabilities = state.netWorth.accounts.filter(function (a) { return a.type === "liability"; })
+      .reduce(function (s, a) { return s + effectiveAccountAmount(a); }, 0);
+    var planLiabilities = installmentLiabilities().reduce(function (s, x) { return s + x.amount; }, 0);
+    var liabilities = manualLiabilities + planLiabilities;
     return { assets: assets, liabilities: liabilities, net: assets - liabilities };
   }
   function snapshotNetWorth() {
@@ -2016,10 +2142,17 @@
     var isAsset = acct.type === "asset";
     var grad = "linear-gradient(135deg, " + (isAsset ? "var(--money-1), var(--money-2)" : "var(--spend-1), var(--spend-2)") + ")";
     var color = isAsset ? "var(--money-1)" : "var(--spend-1)";
+    var autoTag = acct.autoCredit ? ' <span class="auto-tag">אוטומטי מאשראי</span>' : "";
     return '<div class="rec-row-mini" data-id="' + acct.id + '">' +
       '<div class="cat-badge" style="background:' + grad + ";color:#fff;font-weight:800;\">" + (isAsset ? "↑" : "↓") + "</div>" +
-      '<div class="rec-mid"><div class="t">' + escapeHtml(acct.name) + "</div></div>" +
-      '<div class="amt" style="color:' + color + '">' + fmt(acct.amount) + "</div></div>";
+      '<div class="rec-mid"><div class="t">' + escapeHtml(acct.name) + autoTag + "</div></div>" +
+      '<div class="amt" style="color:' + color + '">' + fmt(effectiveAccountAmount(acct)) + "</div></div>";
+  }
+  function planLiabilityRowHtml(item) {
+    return '<div class="rec-row-mini" data-plan-id="' + item.id + '">' +
+      '<div class="cat-badge" style="background:linear-gradient(135deg, var(--spend-1), var(--spend-2));color:#fff;font-weight:800;">↓</div>' +
+      '<div class="rec-mid"><div class="t">' + escapeHtml(item.name) + ' <span class="auto-tag">' + item.remainingCount + " תשלומים נותרו</span></div></div>" +
+      '<div class="amt" style="color:var(--spend-1)">' + fmt(item.amount) + "</div></div>";
   }
   function renderNetWorth() {
     var nw = netWorthTotals();
@@ -2037,28 +2170,39 @@
 
     var assets = state.netWorth.accounts.filter(function (a) { return a.type === "asset"; });
     var liabilities = state.netWorth.accounts.filter(function (a) { return a.type === "liability"; });
+    var planLiabilities = installmentLiabilities();
     $("assetsSectionTitle").textContent = "נכסים · " + fmt(nw.assets);
     $("liabilitiesSectionTitle").textContent = "התחייבויות · " + fmt(nw.liabilities);
     $("assetsBody").innerHTML = assets.length ? assets.map(acctRowHtml).join("") : '<div class="empty-state">אין נכסים רשומים</div>';
-    $("liabilitiesBody").innerHTML = liabilities.length ? liabilities.map(acctRowHtml).join("") : '<div class="empty-state">אין התחייבויות רשומות</div>';
+    var liabRows = liabilities.map(acctRowHtml).concat(planLiabilities.map(planLiabilityRowHtml));
+    $("liabilitiesBody").innerHTML = liabRows.length ? liabRows.join("") : '<div class="empty-state">אין התחייבויות רשומות</div>';
 
     renderRecommendations();
   }
-  delegate("assetsBody", ".rec-row-mini", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
-  delegate("liabilitiesBody", ".rec-row-mini", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
+  delegate("assetsBody", ".rec-row-mini[data-id]", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
+  delegate("liabilitiesBody", ".rec-row-mini[data-id]", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
+  // Installment-plan liability rows are derived, not stored accounts — clicking one jumps to
+  // the recurring rule that actually defines it, since that's the only place it can be changed.
+  delegate("liabilitiesBody", ".rec-row-mini[data-plan-id]", function (el) { openRecurringModal(el.getAttribute("data-plan-id")); });
   function findAccount(id) { return state.netWorth.accounts.find(function (a) { return a.id === id; }); }
   on("addAccountBtn", "click", function () { openAccountModal(null); });
 
   function openAccountModal(existing) {
     var isEdit = !!existing;
     var chosenType = existing ? existing.type : "asset";
+    var autoCredit = existing ? !!existing.autoCredit : false;
+    var amountForField = autoCredit ? creditExpenseTotalForMonth(todayMonthKey()) : (existing ? existing.amount : "");
     var html =
       '<div class="modal-head"><span class="modal-title">' + (isEdit ? "עריכת חשבון" : "חשבון חדש") + '</span><button class="modal-close" data-close>✕</button></div>' +
       '<div class="modal-body">' +
       '<input type="text" class="text-field" id="acctModalName" placeholder="שם החשבון (למשל: עו&quot;ש)" value="' + (existing ? escapeHtml(existing.name) : "") + '" style="text-align:center;font-size:15px;font-weight:700;" />' +
-      '<div class="amount-field" style="border:none;padding:10px 0 0;"><span class="sym">₪</span><input type="text" inputmode="decimal" id="acctModalAmount" value="' + (existing ? existing.amount : "") + '" style="font-size:26px;" /></div>' +
+      '<div class="amount-field" style="border:none;padding:10px 0 0;"><span class="sym">₪</span><input type="text" inputmode="decimal" id="acctModalAmount" value="' + amountForField + '" style="font-size:26px;"' + (autoCredit ? " disabled" : "") + " /></div>" +
       '<div class="field-label" style="margin-top:14px;">סוג</div>' +
       '<div class="seg" id="acctModalType"><button data-type="asset">נכס</button><button data-type="liability">התחייבות</button></div>' +
+      '<label class="auto-credit-toggle" id="acctModalAutoWrap" style="display:' + (chosenType === "liability" ? "flex" : "none") + ';">' +
+      '<input type="checkbox" id="acctModalAuto"' + (autoCredit ? " checked" : "") + " />" +
+      '<span>חשב אוטומטית לפי הוצאות אשראי החודש</span>' +
+      "</label>" +
       '<div class="modal-actions">' +
       '<button class="modal-btn primary" id="acctModalSave">' + (isEdit ? "שמור שינויים" : "הוסף חשבון") + "</button>" +
       (isEdit ? '<button class="modal-btn danger" id="acctModalDelete">מחק חשבון</button>' : "") +
@@ -2069,18 +2213,25 @@
       b.addEventListener("click", function () {
         chosenType = b.getAttribute("data-type");
         document.querySelectorAll("#acctModalType button").forEach(function (x) { x.classList.toggle("active", x === b); });
+        $("acctModalAutoWrap").style.display = chosenType === "liability" ? "flex" : "none";
+        if (chosenType !== "liability") { $("acctModalAuto").checked = false; $("acctModalAmount").disabled = false; }
       });
+    });
+    on("acctModalAuto", "change", function () {
+      $("acctModalAmount").disabled = this.checked;
+      if (this.checked) $("acctModalAmount").value = creditExpenseTotalForMonth(todayMonthKey());
     });
     on("acctModalSave", "click", function () {
       var name = $("acctModalName").value.trim();
-      var amount = parseFloat($("acctModalAmount").value);
+      var autoOn = chosenType === "liability" && $("acctModalAuto").checked;
+      var amount = autoOn ? creditExpenseTotalForMonth(todayMonthKey()) : parseFloat($("acctModalAmount").value);
       if (!name) { shake($("acctModalName")); return; }
       if (isNaN(amount) || amount < 0) { shake($("acctModalAmount")); return; }
       if (isEdit) {
-        existing.name = name; existing.amount = amount; existing.type = chosenType;
+        existing.name = name; existing.amount = amount; existing.type = chosenType; existing.autoCredit = autoOn;
       } else {
         state.nextId += 1;
-        state.netWorth.accounts.push({ id: "a" + state.nextId, name: name, amount: amount, type: chosenType });
+        state.netWorth.accounts.push({ id: "a" + state.nextId, name: name, amount: amount, type: chosenType, autoCredit: autoOn });
       }
       persist();
       Modal.close();
@@ -2478,7 +2629,7 @@
     function () { $("fabSheetBackdrop").classList.remove("open"); }
   );
 
-  var sheetState = { isIncome: false, cat: null, type: "oneTime", editCtx: null, paymentMethod: "credit" };
+  var sheetState = { isIncome: false, cat: null, type: "oneTime", editCtx: null, paymentMethod: "credit", installments: null };
   var backdrop = $("sheetBackdrop");
 
   function openSheet(isIncome, editCtx) {
@@ -2510,6 +2661,24 @@
       $("recurringEditHint").style.display = "none";
     }
     $("sheetDelete").style.display = editCtx ? "block" : "none";
+
+    // Installments: available when creating anything new, or editing an existing recurring
+    // instance (to adjust its plan) — deliberately NOT shown when editing a plain one-time
+    // transaction, since converting an already-recorded one-time entry into a plan after the
+    // fact isn't something this supports (create it as a plan from the start instead).
+    var showInstallments = !isIncome && (!editCtx || isRecurringInstance);
+    $("installmentsWrap").style.display = showInstallments ? "flex" : "none";
+    if (showInstallments) {
+      if (isRecurringInstance) {
+        var recTemplate = state.recurring.find(function (r) { return r.id === editCtx.tx.recurringId; });
+        var cur = recTemplate && recTemplate.installments != null ? recTemplate.installments : null;
+        var val = cur == null ? "unlimited" : (cur <= 60 ? String(cur) : "custom");
+        populateInstallmentsSelect(true, val);
+        if (val === "custom") $("installmentsCustomInput").value = String(cur);
+      } else {
+        populateInstallmentsSelect(false, "1");
+      }
+    }
 
     renderSheetCats();
     backdrop.classList.add("open");
@@ -2560,6 +2729,54 @@
     if (prevValue) select.value = prevValue;
   }
 
+  /**
+   * One-time mode defaults to (and starts from) "1 payment" — leaving it untouched behaves
+   * exactly like a plain one-time expense always has. Recurring mode defaults to "no limit",
+   * matching how a recurring rule has always worked before this existed. Either way, picking
+   * any number from 2-60 (or a custom one above that) is what actually creates an installment
+   * plan — the field's own value is what drives that, not which of the two buttons is active.
+   */
+  function populateInstallmentsSelect(includeUnlimited, selectValue) {
+    var select = $("installmentsInput");
+    select.innerHTML = "";
+    if (includeUnlimited) {
+      var optU = document.createElement("option");
+      optU.value = "unlimited";
+      optU.textContent = "ללא הגבלה";
+      select.appendChild(optU);
+    }
+    for (var n = 1; n <= 60; n++) {
+      var opt = document.createElement("option");
+      opt.value = String(n);
+      opt.textContent = n === 1 ? "תשלום אחד" : n + " תשלומים";
+      select.appendChild(opt);
+    }
+    var optCustom = document.createElement("option");
+    optCustom.value = "custom";
+    optCustom.textContent = "מספר אחר…";
+    select.appendChild(optCustom);
+    select.value = selectValue;
+    $("installmentsCustomInput").style.display = selectValue === "custom" ? "block" : "none";
+    $("installmentsHint").style.display = (selectValue !== "unlimited" && selectValue !== "1") ? "block" : "none";
+  }
+  on("installmentsInput", "change", function () {
+    $("installmentsCustomInput").style.display = this.value === "custom" ? "block" : "none";
+    $("installmentsHint").style.display = (this.value !== "unlimited" && this.value !== "1") ? "block" : "none";
+    if (this.value === "custom") $("installmentsCustomInput").focus();
+  });
+  /** Resolves whatever the picker currently shows into either null (unlimited) or a clamped
+   * 1-60 integer — the single source of truth doSave() and the recurring-modal save both use. */
+  function resolveInstallmentsValue() {
+    var raw = $("installmentsInput").value;
+    if (raw === "unlimited") return null;
+    if (raw === "custom") {
+      var n = parseInt($("installmentsCustomInput").value, 10);
+      if (!n || n < 1) return 1;
+      return Math.min(n, 60);
+    }
+    return parseInt(raw, 10) || 1;
+  }
+
   document.querySelectorAll("#typeSeg button").forEach(function (b) {
     b.addEventListener("click", function () {
       document.querySelectorAll("#typeSeg button").forEach(function (x) { x.classList.remove("active"); });
@@ -2572,6 +2789,7 @@
         populateDaySelect();
         $("recurringDayInput").value = String(new Date().getDate());
       }
+      if (!sheetState.isIncome) populateInstallmentsSelect(isRecurring, isRecurring ? "unlimited" : "1");
     });
   });
 
@@ -2599,6 +2817,11 @@
           var propChanges = { amount: amount, cat: sheetState.cat };
           if (!tx.isIncome) { template.paymentMethod = sheetState.paymentMethod; propChanges.paymentMethod = sheetState.paymentMethod; }
           propagateRecurringChange(template.id, propChanges);
+          if (!tx.isIncome && $("installmentsWrap").style.display !== "none") {
+            var newInstallments = resolveInstallmentsValue();
+            if (!template.startMonth) template.startMonth = mk;
+            if (template.installments !== newInstallments) applyInstallmentsChange(template, newInstallments);
+          }
         }
       }
       persist();
@@ -2609,13 +2832,28 @@
 
     var todayRawDay = new Date().getDate();
     var data = ensureMonth(state.currentMonth);
-    if (sheetState.type === "recurring") {
-      var rawDay = parseInt($("recurringDayInput").value, 10) || todayRawDay;
-      var resolved = resolveCycleDay(state.currentMonth, rawDay);
-      var chosenDay = resolved.day;
+    var installmentsChosen = sheetState.isIncome ? null : resolveInstallmentsValue();
+    var wantsRecurring = sheetState.type === "recurring" || (installmentsChosen != null && installmentsChosen > 1);
+    if (wantsRecurring) {
+      var rawDay, chosenDay, resolved;
+      if (sheetState.type === "recurring") {
+        rawDay = parseInt($("recurringDayInput").value, 10) || todayRawDay;
+      } else {
+        // A one-time entry that turned into a plan via the installments field never showed a
+        // day-of-month picker — it starts today, on today's day, like any freshly-taken loan.
+        rawDay = todayRawDay;
+      }
+      resolved = resolveCycleDay(state.currentMonth, rawDay);
+      chosenDay = resolved.day;
       state.nextId += 1;
       var rid = "r" + state.nextId;
-      var newTemplate = { id: rid, title: findCat(sheetState.cat, sheetState.isIncome).name, cat: sheetState.cat, isIncome: sheetState.isIncome, amount: amount, day: chosenDay, active: true, paymentMethod: sheetState.isIncome ? null : sheetState.paymentMethod };
+      var newTemplate = {
+        id: rid, title: findCat(sheetState.cat, sheetState.isIncome).name, cat: sheetState.cat,
+        isIncome: sheetState.isIncome, amount: amount, day: chosenDay, active: true,
+        paymentMethod: sheetState.isIncome ? null : sheetState.paymentMethod,
+        installments: (installmentsChosen != null && installmentsChosen > 1) ? installmentsChosen : null,
+        startMonth: state.currentMonth
+      };
       state.recurring.push(newTemplate);
       data.items.push(makeTx(sheetState.isIncome, sheetState.cat, amount, chosenDay, note, rid, resolved.month, sheetState.paymentMethod));
       // A brand-new recurring rule is a standing decision too — backfill it into any
