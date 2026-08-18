@@ -34,21 +34,17 @@
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
 
 <script>
-  // The single most reliable source of the TRUE viewport height on iOS — vh/dvh/inset:0 have
-  // all shown real-device mismatches against the actual rendered height in standalone (home
-  // screen) mode, but window.innerHeight never lies about it. Runs before first paint and on
-  // every resize (rotation, keyboard, status bar changes) so nothing is ever a stale value.
+  // --real-vh still feeds html's own height fallback (html isn't fixed-positioned, so it has no
+  // inset:0 to rely on) — but body and .phone are BOTH position:fixed; inset:0 now, which pins
+  // every edge to the actual visual viewport without needing any height value at all. This used
+  // to also force that computed height as an inline style directly onto body/.phone — removed:
+  // an inline height competing with inset:0's own "bottom" edge on every resize/scroll/visibility
+  // tick was a plausible source of the page visibly resettling mid-scroll, not just a redundant
+  // belt-and-suspenders layer.
   (function () {
     function setRealVH() {
       var px = window.innerHeight + "px";
       document.documentElement.style.setProperty("--real-vh", px);
-      // Belt and suspenders: also set the height directly as an inline style once .phone exists
-      // (it doesn't yet on the very first call, before <body> has parsed — later re-checks catch
-      // it). Inline styles always win the cascade outright, so this can't lose to any
-      // specificity/ordering surprise the way a var() fallback theoretically could.
-      var phone = document.querySelector(".phone");
-      if (phone) { phone.style.height = px; }
-      if (document.body) { document.body.style.height = px; }
     }
     // A gap can also appear at the TOP specifically after swiping down from the top edge (Control
     // Center / Notification Center) — that gesture starts at the same edge the page would
@@ -155,8 +151,9 @@
   body {
     touch-action: manipulation;
     margin: 0;
-    height: 100%;
-    height: var(--real-vh, 100%);
+    /* position:fixed + inset:0 alone pins every edge to the true viewport — no separate height
+       value competes with it (see the matching .phone comment for why that competition was
+       itself a plausible source of visual glitches, not just a redundancy). */
     position: fixed;
     inset: 0;
     overflow: hidden;
@@ -609,12 +606,13 @@
   .stage-copy { display: none; }
   .device-row { width: 100%; }
   .phone {
-    /* position:fixed + inset:0 pins this to the exact visual viewport, sidestepping the
-       vh/dvh vs. body's own fixed box mismatches that iOS Safari can produce in standalone
-       mode — those mismatches were the actual cause of the tab bar sitting short of the real
-       bottom edge, not a safe-area padding issue. */
+    /* position:fixed + inset:0 ALONE pins every edge to the true visual viewport the browser is
+       actually rendering into right now — no vh/dvh unit or JS-computed height competes with it
+       any more (an explicit height here, even a JS-recomputed one, can only ever override the
+       "bottom" edge that inset:0 already gets right, and briefly disagreeing with it mid-gesture
+       was a plausible source of the home screen appearing to jump/resettle while scrolling). */
     position: fixed; inset: 0;
-    width: auto; height: 100%; height: var(--real-vh, 100dvh);
+    width: auto; height: auto;
     max-width: none; max-height: none;
     padding: 0; border-radius: 0; box-shadow: none; background: none;
   }
@@ -626,6 +624,10 @@
      clearance below the notch/Dynamic Island/status bar instead of content sitting flush
      against — or under — it. */
   .navbar, .navbar-row { padding-top: max(calc(4px + env(safe-area-inset-top, 0px)), 54px); }
+  /* Home and Settings have no back/add button, so they carry no .navbar bar at all any more —
+     their .scroll is the panel's first child directly, and picks up the same safe-area
+     clearance on its own top padding instead of through an otherwise-empty bar above it. */
+  .panel > .scroll:first-child { padding-top: max(calc(4px + env(safe-area-inset-top, 0px)), 54px); }
   .tabbar { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
   .tab-home { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
   .fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
@@ -658,7 +660,6 @@
         <div class="app">
           <!-- HOME -->
           <div class="panel active" id="panel-home">
-            <div class="navbar"></div>
             <div class="scroll" id="home-scroll">
               <div class="month-switch">
                 <button id="prevMonth" aria-label="חודש קודם"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L1.5 7.5L8 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -865,7 +866,6 @@
 
           <!-- SETTINGS -->
           <div class="panel" id="panel-settings">
-            <div class="navbar"></div>
             <div class="scroll">
               <div class="section-title">מראה</div>
               <div class="seg" id="themeSeg">
