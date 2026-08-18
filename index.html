@@ -34,24 +34,35 @@
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
 
 <script>
-  // On a real iOS device, position:fixed; inset:0 alone is NOT reliably enough to reach the
-  // true bottom edge in standalone mode — confirmed first-hand twice now: removing the inline
-  // height below (in favor of inset:0 alone) reintroduced the tab-bar-short-of-the-bottom-edge
-  // gap this exists to fix, and even with it correctly restored and verified writing to the DOM,
-  // the gap persisted — meaning window.innerHeight itself, not the mechanism applying it, was
-  // the stale number. window.visualViewport.height is a different, purpose-built API for
-  // exactly this ("what's actually visible right now," distinct from the layout viewport
-  // window.innerHeight reports) and is tried here as the more accurate source; falls back to
-  // window.innerHeight on anything that lacks visualViewport support at all.
+  // Root-caused on a real device (iPhone 16 Pro, confirmed): in standalone mode, BOTH
+  // window.innerHeight and window.visualViewport.height agreed with each other at 812px — an
+  // exact match for an OLDER iPhone's full logical height (the X/11 Pro/12-13-mini family), not
+  // this device's true ~874px. Both APIs were being handed the same wrong number, so anything
+  // measured relative to either of them (including a getBoundingClientRect()-based diagnostic
+  // check) looked perfectly self-consistent while still falling short of the true screen. It
+  // wasn't a caching or launch-configuration artifact either — a brand-new, never-before-seen
+  // URL added fresh to the home screen reproduced the exact same 812. window.screen.height is a
+  // DIFFERENT API entirely (device screen geometry, not viewport geometry) and, in standalone
+  // mode specifically, is trusted here as a floor whenever it's plausibly this portrait screen's
+  // real height (taller than its own width) and larger than what the viewport APIs reported —
+  // never used to shrink anything, only to catch a viewport API silently under-reporting.
   (function () {
+    function authoritativeHeight() {
+      var vv = window.visualViewport;
+      var base = vv ? vv.height : window.innerHeight;
+      var standalone = window.navigator.standalone || window.matchMedia("(display-mode: standalone)").matches;
+      if (standalone && window.screen && window.screen.height > window.screen.width && window.screen.height > base) {
+        base = window.screen.height;
+      }
+      return base;
+    }
     // Per-element, per-call comparison against each element's OWN current inline value —
     // deliberately not a single cached "last computed px" flag: the very first call runs before
     // <body> exists, so .phone/body can't receive it yet, and a flag set from that no-op call
     // would then wrongly convince every later call the (never actually applied) value was
     // already up to date.
     function setRealVH() {
-      var vv = window.visualViewport;
-      var px = (vv ? vv.height : window.innerHeight) + "px";
+      var px = authoritativeHeight() + "px";
       document.documentElement.style.setProperty("--real-vh", px);
       var phone = document.querySelector(".phone");
       if (phone && phone.style.height !== px) phone.style.height = px;
@@ -934,9 +945,10 @@
               <div class="card" style="font-size:11.5px; line-height:1.7;" id="diagCard">
                 <div class="set-row"><span class="val" id="diagInnerHeight">—</span><span class="lbl">window.innerHeight</span></div>
                 <div class="set-row"><span class="val" id="diagVVHeight">—</span><span class="lbl">visualViewport.height</span></div>
+                <div class="set-row"><span class="val" id="diagScreenHeight" style="color:var(--brand-1);font-weight:800;">—</span><span class="lbl">screen.height (עצמאי)</span></div>
                 <div class="set-row"><span class="val" id="diagPhoneBottom">—</span><span class="lbl">תחתית .phone</span></div>
                 <div class="set-row"><span class="val" id="diagTabbarBottom">—</span><span class="lbl">תחתית שורת הטאבים</span></div>
-                <div class="set-row"><span class="val" id="diagGap" style="color:var(--spend-1);font-weight:800;">—</span><span class="lbl">פער עד תחתית המסך</span></div>
+                <div class="set-row"><span class="val" id="diagGap" style="color:var(--spend-1);font-weight:800;">—</span><span class="lbl">פער מול screen.height</span></div>
                 <div class="set-row"><span class="val" id="diagSafeBottom">—</span><span class="lbl">safe-area-inset-bottom</span></div>
                 <div class="set-row"><span class="val" id="diagStandalone">—</span><span class="lbl">מצב standalone</span></div>
               </div>
@@ -2153,11 +2165,17 @@
   }
   /** Settings › אבחון תצוגה — raw, unfiltered viewport numbers a user can screenshot directly
    * when something looks wrong, instead of a description that has to be reasoned about
-   * secondhand. The most load-bearing single number here is diagGap: window.innerHeight minus
-   * where .phone's own bottom edge actually lands — if that's ever non-zero, .phone is
-   * genuinely shorter than the browser's own reported viewport, which is the real bug to chase;
-   * if it stays zero while a visible gap is still reported, the gap isn't a sizing bug at all
-   * and the search moves elsewhere entirely (e.g. actual browser chrome, not standalone mode).
+   * secondhand.
+   *
+   * The gap figure is measured against screen.height, not window.innerHeight — an earlier
+   * version of this exact tool compared .phone's bottom edge to window.innerHeight and always
+   * reported 0px, even on a real device with a confirmed, visible gap: window.innerHeight and
+   * .phone were perfectly self-consistent with EACH OTHER, but window.innerHeight itself was the
+   * number quietly falling short of the true screen (confirmed: an iPhone 16 Pro reporting the
+   * exact logical height of an older iPhone model, in standalone mode specifically). Comparing
+   * .phone only against a value it's already forced to match can never catch that class of bug —
+   * screen.height comes from a completely different API (device screen geometry, not viewport
+   * geometry) and isn't susceptible to the same failure mode.
    */
   function renderDiagnostics() {
     var phone = document.querySelector(".phone");
@@ -2166,13 +2184,19 @@
     var phoneRect = phone.getBoundingClientRect();
     var tabbarRect = tabbar.getBoundingClientRect();
     var vv = window.visualViewport;
+    var screenH = window.screen ? window.screen.height : null;
+    var standalone = window.navigator.standalone || window.matchMedia("(display-mode: standalone)").matches;
     $("diagInnerHeight").textContent = window.innerHeight + "px";
     $("diagVVHeight").textContent = vv ? Math.round(vv.height) + "px" : "לא נתמך";
+    $("diagScreenHeight").textContent = screenH ? screenH + "px" : "לא נתמך";
     $("diagPhoneBottom").textContent = Math.round(phoneRect.bottom) + "px";
     $("diagTabbarBottom").textContent = Math.round(tabbarRect.bottom) + "px";
-    $("diagGap").textContent = Math.round(window.innerHeight - phoneRect.bottom) + "px";
+    // In a regular browser tab, screen.height legitimately exceeds .phone's bottom edge (the
+    // browser's own address bar/toolbar chrome accounts for the difference) — that's not a bug,
+    // so the gap figure is only meaningful, and only shown, in standalone mode.
+    $("diagGap").textContent = (standalone && screenH) ? Math.round(screenH - phoneRect.bottom) + "px" : "— (רלוונטי רק ב-standalone)";
     $("diagSafeBottom").textContent = readEnvInset("env(safe-area-inset-bottom)");
-    $("diagStandalone").textContent = (window.navigator.standalone || window.matchMedia("(display-mode: standalone)").matches) ? "כן" : "לא (דפדפן רגיל)";
+    $("diagStandalone").textContent = standalone ? "כן" : "לא (דפדפן רגיל)";
   }
 
   function selectTab(tab) {
