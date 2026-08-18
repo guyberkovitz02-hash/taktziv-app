@@ -324,6 +324,22 @@
   .fab-option.income .fab-icon { background: linear-gradient(135deg, var(--money-1), var(--money-2)); }
   .fab-option.expense .fab-icon { background: linear-gradient(135deg, var(--spend-1), var(--spend-2)); }
 
+  /* Long-press quick actions (edit / delete) — the fast path a native list gives you instead of
+     forcing every edit or delete through the full detail screen. Reuses the same sheet chrome. */
+  .qa-title { text-align: center; font-size: 12.5px; font-weight: 700; color: var(--ink-dim); padding: 0 16px 10px; margin: 0 16px 4px; border-bottom: 1px solid var(--divider); }
+  .qa-option { display: flex; align-items: center; gap: 11px; padding: 15px 4px; font-size: 14.5px; font-weight: 700; color: var(--ink-hi); cursor: pointer; }
+  .qa-option + .qa-option { border-top: 1px solid var(--divider); }
+  .qa-option.danger { color: var(--spend-1); }
+  .qa-icon { width: 34px; height: 34px; border-radius: 11px; display: flex; align-items: center; justify-content: center; background: var(--pill-bg); color: var(--ink-mid); flex-shrink: 0; }
+  .qa-option.danger .qa-icon { background: color-mix(in srgb, var(--spend-1) 16%, transparent); color: var(--spend-1); }
+  /* Visual "something is happening" feedback while a long-press is being held, since ~500ms of
+     silence otherwise reads as the tap simply not registering. The rows already transition
+     transform/opacity (see the shared button/.tx-row/.rec-row-mini/.cat-item.editable rule). */
+  .long-press-active { opacity: 0.65; }
+  /* An invisible edge-swipe catch-zone on the drill-down, matching where a native push view's
+     back gesture starts — lets users swipe back from the screen edge, not just the header bar. */
+  .drill-edge-swipe { position: absolute; top: 0; bottom: 0; right: 0; width: 22px; z-index: 5; }
+
   /* z-index 45: deliberately ABOVE .drill-overlay (40) so the tab bar stays reachable while a
      category drill-down is open — a real navigational push, not a blocking action, so users
      shouldn't be stuck without tab access until they tap "back". Still BELOW the sheet/modal
@@ -820,6 +836,7 @@
 
           <!-- Category drill-down (simulated push) -->
           <div class="drill-overlay" id="drillOverlay">
+            <div class="drill-edge-swipe" id="drillEdgeSwipe" aria-hidden="true"></div>
             <div class="drill-head">
               <button id="drillBack">חזרה</button>
               <span class="ttl" id="drillTitle"></span>
@@ -877,6 +894,24 @@
             <div style="padding:6px 16px 4px;">
               <div class="fab-option income" data-type="income"><span class="fab-icon">＋</span> הוסף הכנסה</div>
               <div class="fab-option expense" data-type="expense"><span class="fab-icon">－</span> הוסף הוצאה</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Long-press quick actions (edit / delete) for list rows -->
+        <div class="sheet-backdrop" id="quickActionsBackdrop">
+          <div class="sheet" style="padding-bottom:calc(18px + env(safe-area-inset-bottom));">
+            <div class="sheet-handle"></div>
+            <div class="qa-title" id="quickActionsTitle"></div>
+            <div style="padding:2px 16px 4px;">
+              <div class="qa-option" id="quickActionsEdit">
+                <span class="qa-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span>עריכה</span>
+              </div>
+              <div class="qa-option danger" id="quickActionsDelete">
+                <span class="qa-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 7V4h6v3M6 7l1 13h10l1-13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                <span id="quickActionsDeleteLabel">מחיקה</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1515,6 +1550,13 @@
   };
   on("modalBackdrop", "click", function (e) { if (e.target === this) Modal.close(); });
 
+  /** Shared by the recurring modal's own delete button and the long-press quick-actions sheet. */
+  function deleteRecurringNow(id) {
+    state.recurring = state.recurring.filter(function (x) { return x.id !== id; });
+    removeRecurringInstancesForward(id);
+    persist();
+    renderRecurring();
+  }
   function openRecurringModal(id) {
     var r = state.recurring.find(function (x) { return x.id === id; });
     if (!r) return;
@@ -1592,15 +1634,20 @@
     });
     on("recModalDelete", "click", function () {
       armConfirm(this, "לחצו שוב למחיקה", function () {
-        state.recurring = state.recurring.filter(function (x) { return x.id !== id; });
-        removeRecurringInstancesForward(id);
-        persist();
+        deleteRecurringNow(id);
         Modal.close();
-        renderRecurring();
       });
     });
   }
 
+  /** Shared by the category modal's own delete button and the long-press quick-actions sheet. */
+  function deleteCategoryNow(kind, cat) {
+    var list = kind === "income" ? state.categoriesIncome : state.categoriesExpense;
+    var idx = list.indexOf(cat);
+    if (idx >= 0) list.splice(idx, 1);
+    persist();
+    renderCategories(currentCatKind);
+  }
   function openCategoryModal(kind, existing) {
     var isEdit = !!existing;
     var chosenIcon = existing ? existing.icon : ICON_CHOICES[0];
@@ -1660,12 +1707,8 @@
     if (isEdit) {
       on("catModalDelete", "click", function () {
         armConfirm(this, "לחצו שוב למחיקה", function () {
-          var list = kind === "income" ? state.categoriesIncome : state.categoriesExpense;
-          var idx = list.indexOf(existing);
-          if (idx >= 0) list.splice(idx, 1);
-          persist();
+          deleteCategoryNow(kind, existing);
           Modal.close();
-          renderCategories(currentCatKind);
         });
       });
     }
@@ -1898,6 +1941,19 @@
   delegate("remainingList", ".budget-row", function (el) { openDrill(el.getAttribute("data-cat"), el.getAttribute("data-month")); });
   delegate("txList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
   delegate("drillTxList", ".tx-row", function (el) { openEditSheet(el.getAttribute("data-month"), el.getAttribute("data-id")); });
+  function quickActionsForTx(el) {
+    var monthKey = el.getAttribute("data-month"), txId = el.getAttribute("data-id");
+    var tx = ensureMonth(monthKey).items.find(function (t) { return t.id === txId; });
+    if (!tx) return;
+    var cat = findCat(tx.cat, tx.isIncome);
+    QuickActions.open(
+      cat.name + " · " + fmt(tx.amount),
+      function () { openEditSheet(monthKey, txId); },
+      function () { deleteTransactionNow(monthKey, txId); }
+    );
+  }
+  onLongPress("txList", ".tx-row", quickActionsForTx);
+  onLongPress("drillTxList", ".tx-row", quickActionsForTx);
 
   /* =====================================================================
    * RENDER: Tabs
@@ -2034,21 +2090,25 @@
   function closeDrill() { $("drillOverlay").classList.remove("open"); }
   /**
    * Swipe-to-go-back on the category drill-down, matching how it visually entered (sliding in
-   * from the right) — dragging the header rightward follows the finger and, past a distance or
-   * speed threshold, finishes the dismiss the same way tapping "back" does. Scoped to the header
-   * only, so it never competes with vertically scrolling the drill-down's own content.
+   * from the right) — dragging rightward follows the finger and, past a distance or speed
+   * threshold, finishes the dismiss the same way tapping "back" does. Bound both to the header
+   * (grab it anywhere) and to a thin edge strip along the screen's right edge — the same edge a
+   * native push view's interactive-pop gesture starts from — so the whole scrollable body in
+   * between is left free for ordinary vertical scrolling.
    */
   (function makeDrillDraggable() {
-    var overlay = $("drillOverlay"), head = document.querySelector(".drill-head");
+    var overlay = $("drillOverlay"), head = document.querySelector(".drill-head"), edge = $("drillEdgeSwipe");
     var dragging = false, startX = 0, currentX = 0, startTime = 0, overlayWidth = 0;
-    head.addEventListener("touchstart", function (e) {
+    function onStart(e) {
       if (e.touches.length !== 1) return;
       dragging = true;
       startX = currentX = e.touches[0].clientX;
       startTime = Date.now();
       overlayWidth = overlay.offsetWidth || 1;
       overlay.style.transition = "none";
-    }, { passive: true });
+    }
+    head.addEventListener("touchstart", onStart, { passive: true });
+    edge.addEventListener("touchstart", onStart, { passive: true });
     overlay.addEventListener("touchmove", function (e) {
       if (!dragging || e.touches.length !== 1) return;
       currentX = e.touches[0].clientX;
@@ -2141,6 +2201,18 @@
   }
   delegate("recExpenseBody", ".rec-row-mini", function (el) { openRecurringModal(el.getAttribute("data-id")); });
   delegate("recIncomeBody", ".rec-row-mini", function (el) { openRecurringModal(el.getAttribute("data-id")); });
+  function quickActionsForRecurring(el) {
+    var id = el.getAttribute("data-id");
+    var r = state.recurring.find(function (x) { return x.id === id; });
+    if (!r) return;
+    QuickActions.open(
+      r.title + " · " + fmt(r.amount),
+      function () { openRecurringModal(id); },
+      function () { deleteRecurringNow(id); }
+    );
+  }
+  onLongPress("recExpenseBody", ".rec-row-mini", quickActionsForRecurring);
+  onLongPress("recIncomeBody", ".rec-row-mini", quickActionsForRecurring);
 
   /* =====================================================================
    * RENDER: Net worth (assets, liabilities, trend, recommendations)
@@ -2224,12 +2296,31 @@
   }
   delegate("assetsBody", ".rec-row-mini[data-id]", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
   delegate("liabilitiesBody", ".rec-row-mini[data-id]", function (el) { openAccountModal(findAccount(el.getAttribute("data-id"))); });
+  function quickActionsForAccount(el) {
+    var acct = findAccount(el.getAttribute("data-id"));
+    if (!acct) return;
+    QuickActions.open(
+      acct.name,
+      function () { openAccountModal(acct); },
+      function () { deleteAccountNow(acct.id); }
+    );
+  }
+  onLongPress("assetsBody", ".rec-row-mini[data-id]", quickActionsForAccount);
+  // Installment-plan liability rows (data-plan-id, no data-id) are intentionally excluded here —
+  // they're derived from a recurring rule, not a deletable account.
+  onLongPress("liabilitiesBody", ".rec-row-mini[data-id]", quickActionsForAccount);
   // Installment-plan liability rows are derived, not stored accounts — clicking one jumps to
   // the recurring rule that actually defines it, since that's the only place it can be changed.
   delegate("liabilitiesBody", ".rec-row-mini[data-plan-id]", function (el) { openRecurringModal(el.getAttribute("data-plan-id")); });
   function findAccount(id) { return state.netWorth.accounts.find(function (a) { return a.id === id; }); }
   on("addAccountBtn", "click", function () { openAccountModal(null); });
 
+  /** Shared by the account modal's own delete button and the long-press quick-actions sheet. */
+  function deleteAccountNow(id) {
+    state.netWorth.accounts = state.netWorth.accounts.filter(function (a) { return a.id !== id; });
+    persist();
+    renderNetWorth();
+  }
   function openAccountModal(existing) {
     var isEdit = !!existing;
     var chosenType = existing ? existing.type : "asset";
@@ -2283,10 +2374,8 @@
     if (isEdit) {
       on("acctModalDelete", "click", function () {
         armConfirm(this, "לחצו שוב למחיקה", function () {
-          state.netWorth.accounts = state.netWorth.accounts.filter(function (a) { return a.id !== existing.id; });
-          persist();
+          deleteAccountNow(existing.id);
           Modal.close();
-          renderNetWorth();
         });
       });
     }
@@ -2395,6 +2484,16 @@
     var list = currentCatKind === "income" ? state.categoriesIncome : state.categoriesExpense;
     var cat = list.find(function (c) { return c.id === el.getAttribute("data-id"); });
     if (cat) openCategoryModal(currentCatKind, cat);
+  });
+  onLongPress("catGrid", ".cat-item.editable", function (el) {
+    var list = currentCatKind === "income" ? state.categoriesIncome : state.categoriesExpense;
+    var cat = list.find(function (c) { return c.id === el.getAttribute("data-id"); });
+    if (!cat) return;
+    QuickActions.open(
+      cat.name,
+      function () { openCategoryModal(currentCatKind, cat); },
+      function () { deleteCategoryNow(currentCatKind, cat); }
+    );
   });
   on("addCategoryBtn", "click", function () { openCategoryModal(currentCatKind, null); });
 
@@ -2672,6 +2771,85 @@
     function () { $("fabSheetBackdrop").classList.remove("open"); }
   );
 
+  /* =====================================================================
+   * Long-press quick actions (edit / delete) — the fast path a native list app gives you
+   * instead of forcing every edit or delete through the full detail screen. A plain tap still
+   * opens the full editor exactly as before; this is purely an additional, faster gesture.
+   * =====================================================================
+   */
+  var QuickActions = {
+    open: function (title, onEdit, onDelete) {
+      $("quickActionsTitle").textContent = title;
+      var editBtn = $("quickActionsEdit"), delBtn = $("quickActionsDelete"), delLabel = $("quickActionsDeleteLabel");
+      delBtn.dataset.armed = "0";
+      delLabel.textContent = delLabel.dataset.originalLabel || delLabel.textContent;
+      // Clone-and-replace so each open() starts with a clean listener instead of stacking a new
+      // one on top of every previous row's closure.
+      var newEdit = editBtn.cloneNode(true), newDel = delBtn.cloneNode(true);
+      editBtn.parentNode.replaceChild(newEdit, editBtn);
+      delBtn.parentNode.replaceChild(newDel, delBtn);
+      newEdit.addEventListener("click", function () { QuickActions.close(); onEdit(); });
+      newDel.addEventListener("click", function () {
+        armConfirm($("quickActionsDeleteLabel"), "לחצו שוב למחיקה", function () {
+          QuickActions.close();
+          onDelete();
+        });
+      });
+      $("quickActionsBackdrop").classList.add("open");
+    },
+    close: function () { $("quickActionsBackdrop").classList.remove("open"); }
+  };
+  on("quickActionsBackdrop", "click", function (e) { if (e.target === this) QuickActions.close(); });
+  makeSheetDraggable(
+    $("quickActionsBackdrop"),
+    $("quickActionsBackdrop").querySelector(".sheet"),
+    [$("quickActionsBackdrop").querySelector(".sheet-handle")],
+    QuickActions.close
+  );
+
+  /**
+   * Binds a long-press (~500ms) on rows matching `selector` inside `containerId`. Cancelled by
+   * any real finger movement or a second touch, so it never fires mid-scroll or mid-pinch. A
+   * plain tap is untouched — on release after a successful long-press we swallow the trailing
+   * click so the row's normal tap handler doesn't also fire and open the wrong thing.
+   */
+  function onLongPress(containerId, selector, handler) {
+    var container = $(containerId);
+    var timer = null, target = null, fired = false, startX = 0, startY = 0;
+    var HOLD_MS = 500, MOVE_TOLERANCE = 10;
+    function cancel() {
+      clearTimeout(timer);
+      timer = null;
+      if (target) target.classList.remove("long-press-active");
+      target = null;
+    }
+    container.addEventListener("touchstart", function (e) {
+      var t = e.target.closest(selector);
+      if (!t || !container.contains(t) || e.touches.length !== 1) { cancel(); return; }
+      target = t;
+      fired = false;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      timer = setTimeout(function () {
+        fired = true;
+        if (target) target.classList.remove("long-press-active");
+        if (navigator.vibrate) navigator.vibrate(12);
+        handler(t);
+      }, HOLD_MS);
+      setTimeout(function () { if (timer && target === t) t.classList.add("long-press-active"); }, 90);
+    }, { passive: true });
+    container.addEventListener("touchmove", function (e) {
+      if (!timer || !e.touches.length) return;
+      var dx = Math.abs(e.touches[0].clientX - startX), dy = Math.abs(e.touches[0].clientY - startY);
+      if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) cancel();
+    }, { passive: true });
+    container.addEventListener("touchend", function (e) {
+      if (fired) e.preventDefault();
+      cancel();
+    });
+    container.addEventListener("touchcancel", cancel);
+  }
+
   var sheetState = { isIncome: false, cat: null, type: "oneTime", editCtx: null, paymentMethod: "credit", installments: null };
   var backdrop = $("sheetBackdrop");
 
@@ -2910,17 +3088,23 @@
     closeSheet();
     refreshAfterDataChange(state.currentMonth);
   }
+  /** Shared by the sheet's own delete button and the long-press quick-actions sheet, so there's
+   * exactly one place that knows how to remove a transaction. */
+  function deleteTransactionNow(monthKey, txId) {
+    var data = ensureMonth(monthKey);
+    data.items = data.items.filter(function (t) { return t.id !== txId; });
+    persist();
+    refreshAfterDataChange(monthKey);
+  }
   on("sheetSave", "click", doSave);
   on("sheetSaveBig", "click", doSave);
   on("sheetDelete", "click", function () {
     if (!sheetState.editCtx) return;
     armConfirm(this, "לחצו שוב למחיקה", function () {
-      var data = ensureMonth(sheetState.editCtx.monthKey);
-      data.items = data.items.filter(function (t) { return t.id !== sheetState.editCtx.tx.id; });
       var mk = sheetState.editCtx.monthKey;
-      persist();
+      var txId = sheetState.editCtx.tx.id;
+      deleteTransactionNow(mk, txId);
       closeSheet();
-      refreshAfterDataChange(mk);
     });
   });
 
