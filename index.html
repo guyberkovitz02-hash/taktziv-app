@@ -240,10 +240,33 @@
   .section-title::after { content: ""; width: 3px; height: 12px; border-radius: 2px; background: linear-gradient(var(--brand-1), var(--brand-2)); }
 
   /* Hero — a plain number on the page, not a decorated card */
-  .hero-balance { text-align: right; cursor: pointer; padding: 2px 2px 16px; border-bottom: 1px solid var(--divider); }
+  .hero-balance {
+    position: relative; text-align: right; cursor: pointer; padding: 18px 52px 18px 18px;
+    border-radius: 20px; background: var(--glass-bg);
+    backdrop-filter: blur(22px) saturate(160%); -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), var(--card-shadow);
+    transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+  .hero-balance:hover, .hero-balance:focus-visible {
+    background: var(--glass-bg-strong); border-color: var(--glass-border-strong);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 32px -16px rgba(0,0,0,0.45);
+  }
+  .hero-balance:active { transform: scale(0.994); }
+  .hero-balance-edit {
+    position: absolute; top: 16px; left: 16px; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--pill-bg); color: var(--ink-dim);
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .hero-balance:hover .hero-balance-edit { background: color-mix(in srgb, var(--brand-1) 20%, transparent); color: var(--brand-1); }
   .hero-balance .cap { font-size: 12.5px; font-weight: 600; color: var(--ink-mid); }
   .hero-balance .num { font-size: 40px; font-weight: 800; margin-top: 4px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink-hi); }
   .hero-balance.negative .num { color: var(--spend-1); }
+  .hero-surplus { font-size: 12.5px; font-weight: 600; color: var(--ink-mid); line-height: 1.55; margin-top: 9px; }
+  .hero-surplus .amt { color: var(--money-1); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hero-surplus.warn .amt { color: var(--warn-1); }
+  .hero-surplus.over .amt { color: var(--spend-1); }
   .hero-kpis { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; justify-content: flex-end; }
   .kpi-chip { font-size: 11px; font-weight: 700; padding: 6px 11px; border-radius: 100px; background: var(--pill-bg); color: var(--ink-mid); white-space: nowrap; }
   .kpi-chip.positive { background: color-mix(in srgb, var(--money-1) 16%, transparent); color: var(--money-1); }
@@ -571,9 +594,11 @@
               </div>
 
               <div id="homeContent" style="display:flex; flex-direction:column; gap:18px;">
-                <div class="hero-balance" id="heroBalance">
-                  <div class="cap">פנוי להוצאה החודש</div>
+                <div class="hero-balance" id="heroBalance" role="button" tabindex="0" aria-label="פנוי להוצאה החודש לפי קטגוריות — הקישו למעבר לתכנון התקציב ויעד החיסכון">
+                  <div class="hero-balance-edit" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 20h9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                  <div class="cap">פנוי להוצאה החודש - לפי קטגוריות:</div>
                   <div class="num" id="balanceNum">₪0</div>
+                  <div class="hero-surplus" id="heroSurplus"></div>
                   <div class="hero-kpis" id="heroKpis"></div>
                 </div>
 
@@ -1797,24 +1822,30 @@
     var bmap = ensureBudgets(mk);
     $("overageBanner").style.display = totalOverage(mk) > 0 ? "flex" : "none";
 
-    // פנוי להוצאה החודש = הכנסות פחות הוצאות בפועל, פחות יעד החיסכון.
-    var safeToSpend = totals.income - totals.expense - plan.goal;
-    $("heroBalance").classList.toggle("negative", safeToSpend < 0);
-    $("balanceNum").textContent = fmt(safeToSpend);
+    // פנוי להוצאה החודש לפי קטגוריות = סכום היתרה שנותרה בכל קטגוריית הוצאה (מתוכנן פחות מה שכבר
+    // הוצא בפועל בה) — התשובה המעודכנת בזמן אמת ל"כמה עוד מותר לי להוציא, קטגוריה-קטגוריה".
+    var remainingInCategories = budgetRowData(mk).reduce(function (s, d) { return s + d.remaining; }, 0);
+    $("heroBalance").classList.toggle("negative", remainingInCategories < 0);
+    $("balanceNum").textContent = fmt(remainingInCategories);
 
-    // נותרו = כמה עוד יש להקצות/לבזבז מעבר לתכנון התקציב הקיים (סה"כ מתוכנן לכל הקטגוריות).
-    // חיובי רק אם התכנון לא "צרך" את כל מה שפנוי — למשל אחרי שהקטנתם אומדן של קטגוריה כלשהי.
+    // יתרה עודפת = מה שנשאר מההכנסה אחרי שהוצאות קבועות (כבר משוקללות בתוך התכנון של כל קטגוריה
+    // קבועה), יעד החיסכון וכלל הקטגוריות המתוכננות "תפסו" את חלקן — כסף שעדיין לא הוקצה לשום דבר.
     var plannedTotal = state.categoriesExpense.reduce(function (s, c) { return s + (bmap[c.id] || 0); }, 0);
     var extraBeyondPlan = (totals.income - plan.goal) - plannedTotal;
 
-    var chips = '<span class="kpi-chip">🎯 יעד חיסכון ' + fmt(plan.goal) + "</span>";
+    var surplusEl = $("heroSurplus");
+    surplusEl.classList.remove("warn", "over");
     if (extraBeyondPlan > 0) {
-      chips += '<span class="kpi-chip positive">נותרו ' + fmt(extraBeyondPlan) + " מעבר לתכנון</span>";
-    } else if (extraBeyondPlan < 0) {
-      chips += '<span class="kpi-chip negative">חריגה בתכנון של ' + fmt(-extraBeyondPlan) + "</span>";
+      surplusEl.innerHTML = "יש לך עוד <span class=\"amt\">" + fmt(extraBeyondPlan) + "</span> פנויים מעבר לזה! ועדיין תעמוד ביעד החיסכון!";
+    } else if (extraBeyondPlan === 0) {
+      surplusEl.classList.add("warn");
+      surplusEl.innerHTML = "כל ההכנסה כבר הוקצתה לתקציב וליעד החיסכון — <span class=\"amt\">₪0</span> פנויים מעבר לזה.";
     } else {
-      chips += '<span class="kpi-chip">התקציב הוקצה במלואו</span>';
+      surplusEl.classList.add("over");
+      surplusEl.innerHTML = "התכנון חורג מההכנסה ב-<span class=\"amt\">" + fmt(-extraBeyondPlan) + "</span> — כדאי לצמצם קטגוריה או להקטין את יעד החיסכון.";
     }
+
+    var chips = '<span class="kpi-chip">🎯 יעד חיסכון ' + fmt(plan.goal) + "</span>";
     $("heroKpis").innerHTML = chips;
 
     // Fixed = tied to an active recurring rule (t.recurringId); everything else counts as
@@ -1849,6 +1880,7 @@
   function goToBudgetTab() { state.budgetMonth = state.currentMonth; persist(); selectTab("budget"); }
   on("goToBudget", "click", goToBudgetTab);
   on("heroBalance", "click", goToBudgetTab);
+  on("heroBalance", "keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToBudgetTab(); } });
   on("overageBanner", "click", goToBudgetTab);
 
   delegate("legend", ".legend-item", function (el) { openDrill(el.getAttribute("data-cat"), state.currentMonth); });
