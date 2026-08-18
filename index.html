@@ -950,6 +950,10 @@
                 </div>
                 <div class="hint" id="typeHint" style="display:none;">התנועה הזו תתווסף אוטומטית גם לחודשים הבאים, עד שתבטלו אותה.</div>
               </div>
+              <div style="display:none; flex-direction:column; gap:8px;" id="txDateWrap">
+                <div class="field-label">תאריך</div>
+                <select class="text-field" id="txDateInput" style="text-align:center;"></select>
+              </div>
               <div style="display:none; flex-direction:column; gap:8px;" id="recurringDayWrap">
                 <div class="field-label">באיזה יום בחודש?</div>
                 <select class="text-field" id="recurringDayInput" style="text-align:center;"></select>
@@ -2872,6 +2876,12 @@
     $("typeHint").style.display = "none";
     $("typeSegWrap").style.display = isRecurringInstance ? "none" : "flex";
     $("recurringDayWrap").style.display = "none";
+    // A recurring instance's date is governed by the standing rule's day-of-month, not a single
+    // pick — the date field is only meaningful for an actual one-time entry, new or existing.
+    $("txDateWrap").style.display = isRecurringInstance ? "none" : "flex";
+    if (!isRecurringInstance) {
+      populateTxDateSelect(String(editCtx ? editCtx.tx.day : new Date().getDate()));
+    }
     if (isRecurringInstance) {
       var isForward = editCtx.monthKey >= todayMonthKey();
       $("recurringEditHint").textContent = isForward
@@ -2951,6 +2961,35 @@
   }
 
   /**
+   * A one-time entry's date picker — every option is a real, concrete calendar date within the
+   * cycle currently being viewed (not an abstract "day X of every month" like the recurring
+   * picker), ordered latest-first to match how the transaction list itself is read. Defaults to
+   * today when creating a new entry; pre-selects the transaction's own date when editing one.
+   */
+  function populateTxDateSelect(selectValue) {
+    var select = $("txDateInput");
+    select.innerHTML = "";
+    var s = cycleStartDay();
+    var candidates = [];
+    for (var d = 1; d <= 31; d++) {
+      var resolved = resolveCycleDay(state.currentMonth, d);
+      if (resolved.day !== d) continue; // clamped away -- this day doesn't exist in this cycle
+      candidates.push({ day: d, month: resolved.month });
+    }
+    candidates.sort(function (a, b) {
+      var ka = a.day >= s ? a.day : a.day + 1000, kb = b.day >= s ? b.day : b.day + 1000;
+      return kb - ka;
+    });
+    candidates.forEach(function (c) {
+      var opt = document.createElement("option");
+      opt.value = String(c.day);
+      opt.textContent = c.day + " ב" + monthLabel(c.month).split(" ")[0];
+      select.appendChild(opt);
+    });
+    select.value = selectValue;
+  }
+
+  /**
    * One-time mode defaults to (and starts from) "1 payment" — leaving it untouched behaves
    * exactly like a plain one-time expense always has. Recurring mode defaults to "no limit",
    * matching how a recurring rule has always worked before this existed. Either way, picking
@@ -3006,9 +3045,12 @@
       var isRecurring = sheetState.type === "recurring";
       $("typeHint").style.display = isRecurring ? "block" : "none";
       $("recurringDayWrap").style.display = isRecurring ? "flex" : "none";
+      $("txDateWrap").style.display = isRecurring ? "none" : "flex";
       if (isRecurring) {
         populateDaySelect();
         $("recurringDayInput").value = String(new Date().getDate());
+      } else {
+        populateTxDateSelect(String(new Date().getDate()));
       }
       if (!sheetState.isIncome) populateInstallmentsSelect(isRecurring, isRecurring ? "unlimited" : "1");
     });
@@ -3044,6 +3086,15 @@
             if (template.installments !== newInstallments) applyInstallmentsChange(template, newInstallments);
           }
         }
+      } else if (!tx.recurringId) {
+        // A plain one-time transaction has no standing rule behind it, so its date is freely
+        // editable within the cycle it's being viewed under.
+        var editedDay = parseInt($("txDateInput").value, 10);
+        if (editedDay) {
+          var editedResolved = resolveCycleDay(mk, editedDay);
+          tx.day = editedResolved.day;
+          tx.month = editedResolved.month;
+        }
       }
       persist();
       closeSheet();
@@ -3052,6 +3103,9 @@
     }
 
     var todayRawDay = new Date().getDate();
+    // The date field only exists for one-time entries -- a "recurring" pick still uses its own
+    // day-of-month field below, untouched by whatever the date select last happened to show.
+    var pickedDay = sheetState.type !== "recurring" ? (parseInt($("txDateInput").value, 10) || todayRawDay) : todayRawDay;
     var data = ensureMonth(state.currentMonth);
     var installmentsChosen = sheetState.isIncome ? null : resolveInstallmentsValue();
     var wantsRecurring = sheetState.type === "recurring" || (installmentsChosen != null && installmentsChosen > 1);
@@ -3060,9 +3114,9 @@
       if (sheetState.type === "recurring") {
         rawDay = parseInt($("recurringDayInput").value, 10) || todayRawDay;
       } else {
-        // A one-time entry that turned into a plan via the installments field never showed a
-        // day-of-month picker — it starts today, on today's day, like any freshly-taken loan.
-        rawDay = todayRawDay;
+        // A one-time entry that turned into a plan via the installments field starts on whichever
+        // date was picked for it, exactly as it would have if it had stayed one-time.
+        rawDay = pickedDay;
       }
       resolved = resolveCycleDay(state.currentMonth, rawDay);
       chosenDay = resolved.day;
@@ -3081,8 +3135,8 @@
       // already-generated months beyond the one currently being viewed, not just this one.
       addRecurringInstancesForward(newTemplate);
     } else {
-      var todayResolved = resolveCycleDay(state.currentMonth, todayRawDay);
-      data.items.push(makeTx(sheetState.isIncome, sheetState.cat, amount, todayResolved.day, note, null, todayResolved.month, sheetState.paymentMethod));
+      var oneTimeResolved = resolveCycleDay(state.currentMonth, pickedDay);
+      data.items.push(makeTx(sheetState.isIncome, sheetState.cat, amount, oneTimeResolved.day, note, null, oneTimeResolved.month, sheetState.paymentMethod));
     }
     persist();
     closeSheet();
