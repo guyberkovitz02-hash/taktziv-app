@@ -43,17 +43,29 @@
       if (phone) { phone.style.height = px; }
       if (document.body) { document.body.style.height = px; }
     }
-    setRealVH();
+    // A gap can also appear at the TOP specifically after swiping down from the top edge (Control
+    // Center / Notification Center) — that gesture starts at the same edge the page would
+    // otherwise use for its own overscroll, and can leave the page shifted by a stray scroll
+    // offset even with overflow:hidden set. Forcing it back to (0,0) whenever anything could have
+    // nudged it closes that gap the same way setRealVH() closes the height one.
+    function resetScroll() {
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+      if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
+      if (document.body && document.body.scrollTop !== 0) document.body.scrollTop = 0;
+    }
+    function syncViewport() { setRealVH(); resetScroll(); }
+    syncViewport();
     // In standalone iOS mode, the safe-area/status-bar geometry can settle a moment AFTER this
     // very first synchronous read — re-checking a few times right after load catches that
     // without waiting on an actual resize event, which may never fire if nothing else changes.
-    document.addEventListener("DOMContentLoaded", setRealVH);
-    window.addEventListener("load", setRealVH);
-    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") setRealVH(); });
-    [100, 300, 800, 1500].forEach(function (ms) { setTimeout(setRealVH, ms); });
-    window.addEventListener("resize", setRealVH);
-    window.addEventListener("orientationchange", setRealVH);
-    if (window.visualViewport) window.visualViewport.addEventListener("resize", setRealVH);
+    document.addEventListener("DOMContentLoaded", syncViewport);
+    window.addEventListener("load", syncViewport);
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") syncViewport(); });
+    [100, 300, 800, 1500].forEach(function (ms) { setTimeout(syncViewport, ms); });
+    window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
+    window.addEventListener("scroll", resetScroll, { passive: true });
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", syncViewport);
   })();
 </script>
 
@@ -103,7 +115,23 @@
     }
   }
 
-  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* Disables the iOS long-press callout (Copy / Look Up / Share...) and text selection across
+     the app's own chrome — a long press on a category, an amount, a label, etc. should never
+     pop up a system text-selection menu, it should only ever trigger this app's own tap/hold
+     behavior (or nothing). Explicitly re-enabled just below for the actual text inputs, where
+     selecting/copying/pasting is a real, needed capability while typing. */
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input, textarea, select {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
 
   /* Locks the actual page from ever scrolling/bouncing itself — every screen's real content
      scrolls inside its own inner .scroll/.sheet-body/.modal-box/#drillScroll container instead
