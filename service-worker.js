@@ -1,7 +1,7 @@
 // Bump this on every deploy that changes index.html/manifest/icons — it's what makes the
 // activate handler throw away the old cached shell and adopt the new one. Leaving it unchanged
 // means returning visitors keep seeing yesterday's cached version even after a real update.
-const CACHE_VERSION = "taktziv-shell-v26";
+const CACHE_VERSION = "taktziv-shell-v27";
 
 const APP_SHELL = [
   "./",
@@ -46,6 +46,13 @@ self.addEventListener("activate", function (event) {
     })
   );
   self.clients.claim();
+});
+
+// Lets the page ask the service worker THAT'S ACTUALLY CONTROLLING IT right now which build it
+// is — shown in Settings › אודות. Answers "is this device really running what was just
+// deployed" directly instead of everyone (developer included) having to guess from symptoms.
+self.addEventListener("message", function (event) {
+  if (event.data === "getVersion") event.source.postMessage({ type: "version", version: CACHE_VERSION });
 });
 
 // Cache-first: everything the app needs (HTML, CSS, JS, fonts) lives in one self-contained
