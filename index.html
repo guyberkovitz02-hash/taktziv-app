@@ -34,17 +34,26 @@
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
 
 <script>
-  // --real-vh still feeds html's own height fallback (html isn't fixed-positioned, so it has no
-  // inset:0 to rely on) — but body and .phone are BOTH position:fixed; inset:0 now, which pins
-  // every edge to the actual visual viewport without needing any height value at all. This used
-  // to also force that computed height as an inline style directly onto body/.phone — removed:
-  // an inline height competing with inset:0's own "bottom" edge on every resize/scroll/visibility
-  // tick was a plausible source of the page visibly resettling mid-scroll, not just a redundant
-  // belt-and-suspenders layer.
+  // On a real iOS device, position:fixed; inset:0 alone is NOT reliably enough to reach the
+  // true bottom edge in standalone mode — confirmed again first-hand: removing the inline
+  // height below (in favor of inset:0 alone, on the theory that competing with it was itself a
+  // bug) reintroduced exactly the tab-bar-short-of-the-bottom-edge gap this was originally built
+  // to fix. window.innerHeight is the one value that's never been wrong on this device, so it's
+  // back — but now only actually touches the DOM when the computed pixel value changes, so it
+  // can't cause a visible re-layout on every single resize/scroll/visibility tick when nothing
+  // about the real size actually moved.
   (function () {
+    // Per-element, per-call comparison against each element's OWN current inline value —
+    // deliberately not a single cached "last computed px" flag: the very first call runs before
+    // <body> exists, so .phone/body can't receive it yet, and a flag set from that no-op call
+    // would then wrongly convince every later call the (never actually applied) value was
+    // already up to date.
     function setRealVH() {
       var px = window.innerHeight + "px";
       document.documentElement.style.setProperty("--real-vh", px);
+      var phone = document.querySelector(".phone");
+      if (phone && phone.style.height !== px) phone.style.height = px;
+      if (document.body && document.body.style.height !== px) document.body.style.height = px;
     }
     // A gap can also appear at the TOP specifically after swiping down from the top edge (Control
     // Center / Notification Center) — that gesture starts at the same edge the page would
@@ -151,9 +160,11 @@
   body {
     touch-action: manipulation;
     margin: 0;
-    /* position:fixed + inset:0 alone pins every edge to the true viewport — no separate height
-       value competes with it (see the matching .phone comment for why that competition was
-       itself a plausible source of visual glitches, not just a redundancy). */
+    /* See the matching .phone comment — inset:0 alone doesn't reliably reach the true bottom
+       edge on a real iOS device in standalone mode, so --real-vh (change-detected, see the
+       head script above) is back doing the real work here too. */
+    height: 100%;
+    height: var(--real-vh, 100%);
     position: fixed;
     inset: 0;
     overflow: hidden;
@@ -606,13 +617,14 @@
   .stage-copy { display: none; }
   .device-row { width: 100%; }
   .phone {
-    /* position:fixed + inset:0 ALONE pins every edge to the true visual viewport the browser is
-       actually rendering into right now — no vh/dvh unit or JS-computed height competes with it
-       any more (an explicit height here, even a JS-recomputed one, can only ever override the
-       "bottom" edge that inset:0 already gets right, and briefly disagreeing with it mid-gesture
-       was a plausible source of the home screen appearing to jump/resettle while scrolling). */
+    /* position:fixed + inset:0 pins the top/left/right edges reliably, but on a real iOS device
+       in standalone mode it is NOT enough on its own to reliably reach the true BOTTOM edge —
+       confirmed first-hand (see the matching head-script comment). The JS-computed --real-vh (and
+       its inline-style twin, which wins outright regardless of this var() fallback ever
+       resolving) is what actually closes that gap; change-detected there now so it only touches
+       the DOM when the real size actually moves. */
     position: fixed; inset: 0;
-    width: auto; height: auto;
+    width: auto; height: 100%; height: var(--real-vh, 100dvh);
     max-width: none; max-height: none;
     padding: 0; border-radius: 0; box-shadow: none; background: none;
   }
