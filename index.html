@@ -225,10 +225,14 @@
   .statusbar { height: 52px; flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 26px 8px; font-size: 15px; font-weight: 600; color: var(--ink-hi); font-variant-numeric: tabular-nums; }
   .statusbar .icons { display: flex; align-items: center; gap: 5px; color: var(--ink-hi); }
   .app { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .navbar { flex-shrink: 0; padding: 6px 18px 12px; text-align: center; font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
-  .navbar-row { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 12px; }
-  .navbar-row .navbar-title { font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
-  .navbar-back-btn { background: none; border: none; color: var(--brand-2); font-size: 16px; font-weight: 700; cursor: pointer; padding: 14px 12px; margin: -8px -12px -14px; font-family: inherit; }
+  /* No title text lives in here any more (removed — every screen is already identified by the
+     tab bar below, and a redundant top title was extra vertical space at exactly the point on
+     the screen most exposed to real safe-area/notch measurement being slightly off) — this bar
+     now exists purely to hold whatever screen-specific control (back / add) belongs at the top,
+     and to carry the safe-area-top clearance itself. */
+  .navbar { flex-shrink: 0; padding: 4px 18px 6px; min-height: 6px; }
+  .navbar-row { flex-shrink: 0; display: flex; align-items: center; padding: 4px 14px 6px; min-height: 6px; }
+  .navbar-back-btn { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -9px -14px -15px; font-family: inherit; }
 
   .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
   .panel.active { display: flex; }
@@ -420,7 +424,7 @@
 
   /* Home: a large raised circular button, centered in the tab bar for clear, obvious access. */
   .tab-home {
-    position: absolute; left: 50%; transform: translateX(-50%); bottom: 32px;
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: 20px;
     width: 62px; height: 62px; border-radius: 50%; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     background: linear-gradient(135deg, var(--brand-1), var(--brand-2));
@@ -552,7 +556,7 @@
   /* touch-action:none so a swipe-back starting on the header or the edge strip is never handed
      off to native panning mid-gesture (see the matching .sheet-handle comment above). */
   .drill-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 10px; touch-action: none; }
-  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 16px; font-weight: 700; cursor: pointer; padding: 14px 12px; margin: -14px -12px; font-family: inherit; }
+  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -15px -14px; font-family: inherit; }
   .drill-head .ttl { font-size: 15px; font-weight: 800; color: var(--ink-hi); }
   .drill-edit-row { display: none; gap: 8px; align-items: center; margin-top: 4px; }
   .drill-edit-row.show { display: flex; }
@@ -617,9 +621,13 @@
   .notch { display: none; }
   .screen { border-radius: 0; }
   .statusbar { display: none; }
-  .navbar, .navbar-row { padding-top: calc(6px + env(safe-area-inset-top, 0px)); }
+  /* max() as a defensive floor: if env(safe-area-inset-top) is ever 0 or under-reports on some
+     device/iOS version (rather than trust it blindly), there's still a guaranteed minimum
+     clearance below the notch/Dynamic Island/status bar instead of content sitting flush
+     against — or under — it. */
+  .navbar, .navbar-row { padding-top: max(calc(4px + env(safe-area-inset-top, 0px)), 54px); }
   .tabbar { padding-bottom: calc(9px + env(safe-area-inset-bottom, 0px)); }
-  .tab-home { bottom: calc(32px + env(safe-area-inset-bottom, 0px)); }
+  .tab-home { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
   .fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 </style>
 </head>
@@ -650,7 +658,7 @@
         <div class="app">
           <!-- HOME -->
           <div class="panel active" id="panel-home">
-            <div class="navbar">תקציב</div>
+            <div class="navbar"></div>
             <div class="scroll" id="home-scroll">
               <div class="month-switch">
                 <button id="prevMonth" aria-label="חודש קודם"><svg width="9" height="15" viewBox="0 0 9 15" fill="none"><path d="M8 1L1.5 7.5L8 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -736,8 +744,6 @@
           <div class="panel" id="panel-budget">
             <div class="navbar-row">
               <button id="budgetBackBtn" class="navbar-back-btn">חזרה</button>
-              <span class="navbar-title">תכנון תקציב</span>
-              <span style="width:44px;"></span>
             </div>
             <div class="scroll" id="budget-scroll">
               <div class="month-switch">
@@ -793,8 +799,6 @@
           <div class="panel" id="panel-recurring">
             <div class="navbar-row">
               <button class="fab-mini" id="addRecurringBtn" aria-label="הוצאה או הכנסה קבועה חדשה">+</button>
-              <span class="navbar-title">תנועות קבועות</span>
-              <span style="width:40px;"></span>
             </div>
             <div class="scroll">
               <div class="accordion open" id="accExpense">
@@ -819,8 +823,6 @@
           <div class="panel" id="panel-categories">
             <div class="navbar-row">
               <button class="fab-mini" id="addCategoryBtn" aria-label="קטגוריה חדשה">+</button>
-              <span class="navbar-title">קטגוריות</span>
-              <span style="width:40px;"></span>
             </div>
             <div class="scroll">
               <div class="seg" id="catSeg">
@@ -836,8 +838,6 @@
           <div class="panel" id="panel-networth">
             <div class="navbar-row">
               <button class="fab-mini" id="addAccountBtn" aria-label="חשבון חדש">+</button>
-              <span class="navbar-title">שווי נקי</span>
-              <span style="width:40px;"></span>
             </div>
             <div class="scroll">
               <div class="hero-balance" id="netWorthHero" style="cursor:default;">
@@ -865,7 +865,7 @@
 
           <!-- SETTINGS -->
           <div class="panel" id="panel-settings">
-            <div class="navbar">הגדרות</div>
+            <div class="navbar"></div>
             <div class="scroll">
               <div class="section-title">מראה</div>
               <div class="seg" id="themeSeg">
@@ -910,7 +910,7 @@
             <div class="drill-head">
               <button id="drillBack">חזרה</button>
               <span class="ttl" id="drillTitle"></span>
-              <span style="width:44px;"></span>
+              <span style="width:56px;"></span>
             </div>
             <div class="scroll" id="drillScroll">
               <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
@@ -2738,9 +2738,10 @@
     var dragging = false, moved = false;
     var startX = 0, startY = 0, startLeft = 0, startTop = 0;
 
-    // Matches .navbar's rendered height (title strip) and the tab bar + raised home button's
-    // combined footprint (tab-home sits at bottom:40px with a 58px diameter, so its top edge
-    // reaches 98px up from the screen's bottom edge) — see the matching drillScroll clearance.
+    // Clears .navbar's own safe-area-aware top clearance, and the tab bar + raised home
+    // button's combined footprint at the bottom (tab-home sits at bottom:20px with a 62px
+    // diameter, so its top edge reaches ~82px up from the screen's bottom edge) — see the
+    // matching drillScroll clearance.
     var FAB_TOP_SAFE = 56;
     var FAB_BOTTOM_SAFE = 100;
 
