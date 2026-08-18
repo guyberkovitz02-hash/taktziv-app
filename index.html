@@ -385,7 +385,7 @@
   .tx-mid { flex: 1; text-align: right; min-width: 0; }
   .tx-mid .name { font-size: 14px; font-weight: 600; color: var(--ink-hi); display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
   .tx-mid .note { font-size: 12px; color: var(--ink-dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cat-badge { width: 36px; height: 36px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .cat-badge { width: 36px; height: 36px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; background: var(--pill-bg); transition: box-shadow 0.15s ease; }
   .repeat-dot { font-size: 10px; color: var(--ink-dim); }
   .empty-state { text-align: center; padding: 30px 10px; color: var(--ink-dim); font-size: 13px; }
 
@@ -568,27 +568,52 @@
   /* Bottom sheets (transaction form + FAB picker) */
   .sheet-backdrop { position: absolute; inset: 0; background: rgba(3,4,8,0.5); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity 0.25s ease; z-index: 70; border-radius: 44px; }
   .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
-  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--screen-g2) 88%, transparent); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%); border-top: 1px solid var(--glass-border-strong); border-radius: 26px 26px 0 0; transform: translateY(100%); transition: transform 0.32s cubic-bezier(.32,.72,0,1); max-height: 88%; display: flex; flex-direction: column; z-index: 71; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--screen-g2) 88%, transparent); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%); border-top: 1px solid var(--glass-border-strong); border-radius: 26px 26px 0 0; transform: translateY(100%); transition: transform 0.32s cubic-bezier(.32,.72,0,1); max-height: 100%; display: flex; flex-direction: column; z-index: 71; }
   .sheet-backdrop.open .sheet { transform: translateY(0); }
-  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; }
-  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); }
+  /* touch-action:none on the drag-initiation zones — without it, the browser can hand a touch
+     that starts here off to native panning mid-gesture (it's still inside a page that scrolls
+     elsewhere), which cuts the drag short with an early touchcancel instead of a clean drag-to-
+     dismiss. Taps on buttons inside .sheet-head are untouched — touch-action only governs
+     continuous gestures, not discrete tap/click recognition. */
+  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; touch-action: none; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); touch-action: none; }
   .sheet-head button { background: none; border: none; font-size: 14px; color: var(--brand-2); font-weight: 700; cursor: pointer; padding: 4px; font-family: inherit; }
-  .sheet-body { overflow-y: auto; overscroll-behavior: none; padding: 4px 16px 22px; display: flex; flex-direction: column; gap: 18px; }
+  /* No internal scrolling — the sheet grows to fit its content (up to the full screen height)
+     instead, so everything is visible at once the moment it rises up. */
+  .sheet-body { overflow-y: visible; padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 12px; }
+  /* The add/edit sheet in particular has the most fields of any sheet, so it gets a few extra
+     points shaved off spacing that's generous elsewhere — still comfortably tappable, just
+     tight enough that even a compact phone shows every field without scrolling. */
+  #sheetBackdrop .sheet-body { gap: 7px; padding-bottom: 10px; }
+  #sheetBackdrop .amount-field { padding: 6px 4px; }
+  #sheetBackdrop .text-field { padding: 8px 13px; }
+  #sheetBackdrop .sheet-handle { margin: 6px auto 3px; }
+  #sheetBackdrop .sheet-head { padding: 4px 16px 6px; }
+  #sheetBackdrop .save-btn { padding: 11px 0; }
+  #sheetBackdrop #sheetCatGrid { gap: 6px 6px; }
+  #sheetBackdrop #sheetCatGrid .cat-item, #sheetBackdrop #paymentMethodGrid .cat-item { gap: 3px; }
+  #sheetBackdrop .seg button { padding: 6px 0; }
+  #sheetBackdrop .hint { line-height: 1.3; }
 
-  /* Add/edit transaction sheet — tinted green for income, pink/red for expense, echoing the
-     same --money-1/--spend-1 tokens used everywhere else a transaction's sign is shown. */
-  #sheetBackdrop.income .sheet { border-top-color: color-mix(in srgb, var(--money-1) 50%, var(--glass-border-strong)); }
-  #sheetBackdrop.expense .sheet { border-top-color: color-mix(in srgb, var(--spend-1) 50%, var(--glass-border-strong)); }
-  #sheetBackdrop.income .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--money-1) 14%, transparent), transparent); }
-  #sheetBackdrop.expense .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--spend-1) 14%, transparent), transparent); }
+  /* Add/edit transaction sheet — neutral/gray until a category is chosen, then every accent
+     (border, header wash, amount field, save button) adopts that specific category's own color
+     via --sheet-accent, set from JS in renderSheetCats/updateSheetAccent. */
+  #sheetBackdrop { --sheet-accent: var(--ink-dim); }
+  #sheetBackdrop .sheet { border-top-color: color-mix(in srgb, var(--sheet-accent) 50%, var(--glass-border-strong)); }
+  #sheetBackdrop .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--sheet-accent) 14%, transparent), transparent); }
+  /* Without a scrollbar to fall back on, the category/payment pickers need to be compact enough
+     that a full grid always fits on one screen alongside every other field below it — five
+     columns and smaller badges instead of the spacious four-column layout the Categories tab
+     itself still uses (that one has the whole screen to itself, so it stays at full size). */
+  #sheetCatGrid { grid-template-columns: repeat(5, 1fr); gap: 8px 6px; }
+  #sheetCatGrid .cat-badge, #paymentMethodGrid .cat-badge { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+  #sheetCatGrid .cat-name, #paymentMethodGrid .cat-name { font-size: 9.5px; }
 
   .amount-field { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; padding: 10px 4px; border-bottom: 1px solid var(--divider); }
   .amount-field .sym { font-size: 18px; font-weight: 700; color: var(--ink-dim); }
   .amount-field input { border: none; background: none; outline: none; font-family: 'Rubik', -apple-system, sans-serif; font-size: 30px; font-weight: 800; color: var(--ink-hi); text-align: right; width: 100%; direction: rtl; letter-spacing: -0.02em; }
-  #sheetBackdrop.income .amount-field { border-bottom-color: color-mix(in srgb, var(--money-1) 55%, transparent); }
-  #sheetBackdrop.expense .amount-field { border-bottom-color: color-mix(in srgb, var(--spend-1) 55%, transparent); }
-  #sheetBackdrop.income .amount-field .sym, #sheetBackdrop.income .amount-field input { color: var(--money-1); }
-  #sheetBackdrop.expense .amount-field .sym, #sheetBackdrop.expense .amount-field input { color: var(--spend-1); }
+  #sheetBackdrop .amount-field { border-bottom-color: color-mix(in srgb, var(--sheet-accent) 55%, transparent); }
+  #sheetBackdrop .amount-field .sym, #sheetBackdrop .amount-field input { color: var(--sheet-accent); }
 
   .field-label { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); text-align: right; text-transform: uppercase; letter-spacing: 0.05em; }
   .text-field { border: 1px solid var(--glass-border); border-radius: 13px; padding: 11px 13px; font-size: 14px; text-align: right; background: var(--pill-bg); color: var(--ink-hi); outline: none; direction: rtl; font-family: inherit; width: 100%; }
@@ -598,7 +623,7 @@
   .auto-credit-toggle { align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--ink-mid); cursor: pointer; }
   .auto-credit-toggle input { width: 18px; height: 18px; accent-color: var(--brand-1); flex-shrink: 0; }
   .save-btn { border: none; border-radius: 14px; padding: 14px 0; font-size: 14.5px; font-weight: 700; color: #fff; cursor: pointer; background: linear-gradient(135deg, var(--money-1), var(--money-2)); box-shadow: 0 14px 26px -12px rgba(61,242,166,0.5); font-family: inherit; }
-  #sheetBackdrop.expense .save-btn { background: linear-gradient(135deg, var(--spend-1), var(--spend-2)); box-shadow: 0 14px 26px -12px rgba(255,69,115,0.5); }
+  #sheetBackdrop .save-btn { background: linear-gradient(135deg, var(--sheet-accent), color-mix(in srgb, var(--sheet-accent) 65%, black)); box-shadow: 0 14px 26px -12px color-mix(in srgb, var(--sheet-accent) 50%, transparent); }
   .delete-btn { border: none; background: none; color: var(--spend-1); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; padding: 4px; font-family: inherit; }
   .toast-note { max-width: 375px; text-align: center; font-size: 12px; color: var(--ink-mid); line-height: 1.6; }
 
@@ -1091,17 +1116,17 @@
               </div>
               <div>
                 <div class="field-label" id="pickerLabel">קטגוריה</div>
-                <div class="cat-grid" id="sheetCatGrid" style="padding-top:10px;"></div>
+                <div class="cat-grid" id="sheetCatGrid" style="padding-top:6px;"></div>
               </div>
               <div id="paymentMethodWrap">
                 <div class="field-label">אמצעי תשלום</div>
-                <div class="pm-grid" id="paymentMethodGrid" style="padding-top:10px;"></div>
+                <div class="pm-grid" id="paymentMethodGrid" style="padding-top:6px;"></div>
               </div>
-              <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; flex-direction:column; gap:5px;">
                 <div class="field-label">הערה (לא חובה)</div>
                 <input type="text" class="text-field" id="noteInput" placeholder="למשל: קניות לשבת" />
               </div>
-              <div style="display:flex; flex-direction:column; gap:8px;" id="typeSegWrap">
+              <div style="display:flex; flex-direction:column; gap:5px;" id="typeSegWrap">
                 <div class="field-label">סוג</div>
                 <div class="seg" id="typeSeg">
                   <button class="active" data-type="oneTime">חד־פעמית</button>
@@ -1109,15 +1134,15 @@
                 </div>
                 <div class="hint" id="typeHint" style="display:none;">התנועה הזו תתווסף אוטומטית גם לחודשים הבאים, עד שתבטלו אותה.</div>
               </div>
-              <div style="display:none; flex-direction:column; gap:8px;" id="txDateWrap">
+              <div style="display:none; flex-direction:column; gap:5px;" id="txDateWrap">
                 <div class="field-label">תאריך</div>
                 <select class="text-field" id="txDateInput" style="text-align:center;"></select>
               </div>
-              <div style="display:none; flex-direction:column; gap:8px;" id="recurringDayWrap">
+              <div style="display:none; flex-direction:column; gap:5px;" id="recurringDayWrap">
                 <div class="field-label">באיזה יום בחודש?</div>
                 <select class="text-field" id="recurringDayInput" style="text-align:center;"></select>
               </div>
-              <div style="display:none; flex-direction:column; gap:8px;" id="installmentsWrap">
+              <div style="display:none; flex-direction:column; gap:5px;" id="installmentsWrap">
                 <div class="field-label">מספר תשלומים</div>
                 <select class="text-field" id="installmentsInput" style="text-align:center;"></select>
                 <input type="text" inputmode="numeric" class="text-field" id="installmentsCustomInput" placeholder="הזינו מספר תשלומים (עד 60)" style="display:none;" />
@@ -2981,6 +3006,45 @@
     applyStoredPosition();
   })();
 
+  /**
+   * Swipe-down-to-dismiss for bottom sheets — dragging from the handle/header follows the
+   * finger in real time and springs back on release, unless the drag went far enough (or fast
+   * enough) to count as an intentional dismiss, matching the native iOS sheet gesture. Scoped
+   * to the handle/header only (never the scrollable body), so it can never fight with normal
+   * scrolling of the sheet's own content. `requestClose` — not a raw classList toggle — is what
+   * actually decides whether the sheet closes, so a sheet with its own "did anything change"
+   * check (see requestCloseSheet) can intercept a drag exactly like it intercepts any other exit.
+   */
+  function makeSheetSwipeDown(sheetEl, dragHandleEls, requestClose) {
+    var dragging = false, startY = 0, currentY = 0, startTime = 0, sheetHeight = 0;
+    function onStart(e) {
+      if (e.touches.length !== 1) return;
+      dragging = true;
+      startY = currentY = e.touches[0].clientY;
+      startTime = Date.now();
+      sheetHeight = sheetEl.offsetHeight || 1;
+      sheetEl.style.transition = "none";
+    }
+    dragHandleEls.forEach(function (el) { el.addEventListener("touchstart", onStart, { passive: true }); });
+    sheetEl.addEventListener("touchmove", function (e) {
+      if (!dragging || e.touches.length !== 1) return;
+      currentY = e.touches[0].clientY;
+      var delta = Math.max(0, currentY - startY);
+      sheetEl.style.transform = "translateY(" + delta + "px)";
+    }, { passive: true });
+    function onEnd(e) {
+      if (!dragging || (e.touches && e.touches.length > 0)) return;
+      dragging = false;
+      sheetEl.style.transition = "";
+      sheetEl.style.transform = "";
+      var delta = Math.max(0, currentY - startY);
+      var elapsed = Math.max(1, Date.now() - startTime);
+      if (delta > sheetHeight * 0.28 || delta / elapsed > 0.6) requestClose();
+    }
+    sheetEl.addEventListener("touchend", onEnd);
+    sheetEl.addEventListener("touchcancel", onEnd);
+  }
+
   /* =====================================================================
    * FAB tap + add/edit transaction sheet
    * ===================================================================== */
@@ -2995,8 +3059,9 @@
     forceRecurringNext = true;
     $("fabSheetBackdrop").classList.add("open");
   });
+  function closeFabSheet() { $("fabSheetBackdrop").classList.remove("open"); forceRecurringNext = false; }
   on("fabSheetBackdrop", "click", function (e) {
-    if (e.target === this) { this.classList.remove("open"); forceRecurringNext = false; return; }
+    if (e.target === this) { closeFabSheet(); return; }
     var opt = e.target.closest(".fab-option");
     if (!opt) return;
     this.classList.remove("open");
@@ -3007,6 +3072,7 @@
       if (recBtn) recBtn.click();
     }
   });
+  makeSheetSwipeDown($("fabSheetBackdrop").querySelector(".sheet"), [$("fabSheetBackdrop").querySelector(".sheet-handle")], closeFabSheet);
   /* =====================================================================
    * Long-press quick actions (edit / delete) — the fast path a native list app gives you
    * instead of forcing every edit or delete through the full detail screen. A plain tap still
@@ -3036,6 +3102,7 @@
     close: function () { $("quickActionsBackdrop").classList.remove("open"); }
   };
   on("quickActionsBackdrop", "click", function (e) { if (e.target === this) QuickActions.close(); });
+  makeSheetSwipeDown($("quickActionsBackdrop").querySelector(".sheet"), [$("quickActionsBackdrop").querySelector(".sheet-handle")], QuickActions.close);
 
   /**
    * Binds a long-press (~500ms) on rows matching `selector` inside `containerId`. Cancelled by
@@ -3106,8 +3173,6 @@
     sheetState.cat = editCtx ? editCtx.tx.cat : null;
     sheetState.paymentMethod = editCtx && editCtx.tx.paymentMethod ? editCtx.tx.paymentMethod : "credit";
 
-    backdrop.classList.toggle("income", isIncome);
-    backdrop.classList.toggle("expense", !isIncome);
     $("sheetTitle").textContent = editCtx ? (isIncome ? "עריכת הכנסה" : "עריכת הוצאה") : (isIncome ? "הכנסה חדשה" : "הוצאה חדשה");
     $("pickerLabel").textContent = isIncome ? "מקור" : "קטגוריה";
     $("amountInput").value = editCtx ? editCtx.tx.amount : "";
@@ -3155,21 +3220,78 @@
 
     renderSheetCats();
     backdrop.classList.add("open");
+    // Captured last, once every field above has its real starting value — this is what
+    // requestCloseSheet() compares against to tell an untouched sheet from a genuinely edited
+    // one, so an accidental drag or backdrop tap never prompts when nothing would actually be lost.
+    sheetState._initialSnapshot = sheetSnapshot();
     setTimeout(function () { $("amountInput").focus(); }, 320);
   }
   function closeSheet() { backdrop.classList.remove("open"); }
+  /** Plain-object read of every field that matters for "did the user actually change anything" —
+   * deliberately excludes cosmetic/derived state (e.g. which install­ments hint is showing). */
+  function sheetSnapshot() {
+    return JSON.stringify({
+      cat: sheetState.cat,
+      paymentMethod: sheetState.paymentMethod,
+      type: sheetState.type,
+      amount: $("amountInput").value,
+      note: $("noteInput").value,
+      date: $("txDateInput").value,
+      recurringDay: $("recurringDayInput").value,
+      installments: $("installmentsInput").value,
+      installmentsCustom: $("installmentsCustomInput").value
+    });
+  }
+  function isSheetDirty() {
+    return sheetState._initialSnapshot !== undefined && sheetSnapshot() !== sheetState._initialSnapshot;
+  }
+  /**
+   * The single gatekeeper every dismissal path (Cancel, backdrop tap, swipe-down) goes through
+   * instead of calling closeSheet() directly — an untouched sheet closes immediately, but one
+   * with real, unsaved edits stops to ask first instead of silently throwing them away.
+   */
+  function requestCloseSheet() {
+    if (!isSheetDirty()) { closeSheet(); return; }
+    var isNew = !sheetState.editCtx;
+    var kind = sheetState.isIncome ? "ההכנסה" : "ההוצאה";
+    var title = isNew ? ("לצאת בלי לשמור את " + kind + " החדשה?") : "לצאת בלי לשמור את השינויים?";
+    var continueLabel = isNew ? "המשך בהוספה" : "המשך בעריכה";
+    var html =
+      '<div class="modal-head"><span class="modal-title">' + escapeHtml(title) + "</span></div>" +
+      '<div class="modal-body">' +
+      '<div class="hint">מה שהזנתם לא נשמר עדיין — אם תצאו עכשיו זה יימחק.</div>' +
+      '<div class="modal-actions">' +
+      '<button class="modal-btn primary" data-close>' + continueLabel + "</button>" +
+      '<button class="modal-btn danger" id="sheetDiscardConfirm">צא בלי לשמור</button>' +
+      "</div></div>";
+    Modal.open(html);
+    on("sheetDiscardConfirm", "click", function () { Modal.close(); closeSheet(); });
+  }
   function openEditSheet(monthKey, txId) {
     var data = ensureMonth(monthKey);
     var tx = data.items.find(function (t) { return t.id === txId; });
     if (!tx) return;
     openSheet(tx.isIncome, { monthKey: monthKey, tx: tx });
   }
+  /**
+   * Every badge is the same neutral gray until chosen — the category's own color only shows up
+   * as a ring around it once picked (see updateSheetAccent for how that same color then spreads
+   * to the rest of the sheet).
+   */
   function renderSheetCats() {
     var list = sheetState.isIncome ? state.categoriesIncome : state.categoriesExpense;
     $("sheetCatGrid").innerHTML = list.map(function (c) {
       var sel = c.id === sheetState.cat;
-      return '<div class="cat-item editable" data-id="' + c.id + '"><div class="cat-badge" style="background:' + (sel ? c.color : c.color + "22") + ";color:" + (sel ? "#fff" : c.color) + '">' + c.icon + '</div><div class="cat-name">' + escapeHtml(c.name) + "</div></div>";
+      var ring = sel ? ("box-shadow:0 0 0 2.5px " + c.color + ";") : "";
+      return '<div class="cat-item editable" data-id="' + c.id + '"><div class="cat-badge" style="' + ring + '">' + c.icon + '</div><div class="cat-name">' + escapeHtml(c.name) + "</div></div>";
     }).join("");
+    updateSheetAccent();
+  }
+  /** Drives --sheet-accent (see the CSS above): gray until a category is chosen, then that exact
+   * category's color, so the whole sheet's accent always matches what's actually selected. */
+  function updateSheetAccent() {
+    var color = sheetState.cat ? findCat(sheetState.cat, sheetState.isIncome).color : null;
+    backdrop.style.setProperty("--sheet-accent", color || "var(--ink-dim)");
   }
   delegate("sheetCatGrid", ".cat-item", function (el) { sheetState.cat = el.getAttribute("data-id"); renderSheetCats(); });
 
@@ -3295,8 +3417,9 @@
     });
   });
 
-  on("sheetCancel", "click", closeSheet);
-  on("sheetBackdrop", "click", function (e) { if (e.target === this) closeSheet(); });
+  on("sheetCancel", "click", requestCloseSheet);
+  on("sheetBackdrop", "click", function (e) { if (e.target === this) requestCloseSheet(); });
+  makeSheetSwipeDown(backdrop.querySelector(".sheet"), [backdrop.querySelector(".sheet-handle"), backdrop.querySelector(".sheet-head")], requestCloseSheet);
 
   function doSave() {
     var amount = parseFloat($("amountInput").value);
