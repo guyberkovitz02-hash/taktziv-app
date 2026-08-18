@@ -1803,19 +1803,25 @@
    * ===================================================================== */
   function buildTxListHtml(items, monthKey) {
     if (items.length === 0) return '<div class="card"><div class="empty-state">אין תנועות עדיין החודש</div></div>';
-    var s = cycleStartDay();
-    var byDay = {};
-    items.forEach(function (t) { (byDay[t.day] = byDay[t.day] || []).push(t); });
-    // Chronological, most-recent-first. In calendar mode day numbers already sort that way; in a
-    // custom cycle the second half (days 1..s-1) actually comes AFTER the first half (days
-    // s..31) in real time, so it needs a key that reflects that instead of raw day value.
-    var days = Object.keys(byDay).map(Number).sort(function (a, b) {
-      var ka = a >= s ? a : a + 1000, kb = b >= s ? b : b + 1000;
-      return kb - ka;
+    // Grouped by each item's own REAL calendar date (frozen on every item via t.month at
+    // creation time — see resolveCycleDay) — a composite "real month + day" key, NOT the raw day
+    // number alone. Grouping by day alone would wrongly merge two items that happen to share a
+    // day number but belong to different real months, which can genuinely happen once the cycle
+    // mode has ever been changed: an item recorded under the old setting keeps whatever real
+    // month it was frozen with, forever, so a same-numbered day added later under a different
+    // setting is a different real date, not the same group. The key is already a zero-padded
+    // "YYYY-MM-DD"-shaped string, so plain string comparison sorts it chronologically for free —
+    // no need to re-derive "which half of the cycle" from today's live cycleStartDay() setting.
+    var byKey = {};
+    items.forEach(function (t) {
+      var realMonth = itemRealMonth(t, monthKey);
+      var key = realMonth + "-" + String(t.day).padStart(2, "0");
+      (byKey[key] = byKey[key] || { day: t.day, month: realMonth, items: [] }).items.push(t);
     });
-    return days.map(function (day) {
-      var group = byDay[day];
-      var rows = group.map(function (t) {
+    var keys = Object.keys(byKey).sort(function (a, b) { return b < a ? -1 : b > a ? 1 : 0; });
+    return keys.map(function (key) {
+      var groupInfo = byKey[key];
+      var rows = groupInfo.items.map(function (t) {
         var cat = findCat(t.cat, t.isIncome);
         var pmIcon = !t.isIncome ? '<span class="pm-icon" title="' + escapeHtml(findPaymentMethod(t.paymentMethod).name) + '">' + findPaymentMethod(t.paymentMethod).icon + "</span>" : "";
         return '<div class="tx-row" data-id="' + t.id + '" data-month="' + monthKey + '">' +
@@ -1824,10 +1830,7 @@
           (t.note ? '<div class="note">' + escapeHtml(t.note) + "</div>" : "") + "</div>" +
           '<div class="cat-badge" style="background:' + cat.color + '22;color:' + cat.color + '">' + cat.icon + "</div></div>";
       }).join("");
-      // All items in one day-group share the same real month by construction (day ranges for
-      // the two halves of a cycle never overlap) — take it from any one of them.
-      var realMonth = itemRealMonth(group[0], monthKey);
-      return '<div class="day-group"><div class="day-label">' + day + " ב" + monthLabel(realMonth).split(" ")[0] + '</div><div class="card" style="padding:4px 6px;">' + rows + "</div></div>";
+      return '<div class="day-group"><div class="day-label">' + groupInfo.day + " ב" + monthLabel(groupInfo.month).split(" ")[0] + '</div><div class="card" style="padding:4px 6px;">' + rows + "</div></div>";
     }).join("");
   }
 
@@ -3030,16 +3033,19 @@
   function populateTxDateSelect(selectValue) {
     var select = $("txDateInput");
     select.innerHTML = "";
-    var s = cycleStartDay();
     var candidates = [];
     for (var d = 1; d <= 31; d++) {
       var resolved = resolveCycleDay(state.currentMonth, d);
       if (resolved.day !== d) continue; // clamped away -- this day doesn't exist in this cycle
       candidates.push({ day: d, month: resolved.month });
     }
+    // Sorted by real calendar date (month + day), matching the transaction list's own ordering
+    // convention exactly — see buildTxListHtml for why this can't be re-derived from the day
+    // number and cycleStartDay() alone.
     candidates.sort(function (a, b) {
-      var ka = a.day >= s ? a.day : a.day + 1000, kb = b.day >= s ? b.day : b.day + 1000;
-      return kb - ka;
+      var ka = a.month + "-" + String(a.day).padStart(2, "0");
+      var kb = b.month + "-" + String(b.day).padStart(2, "0");
+      return kb < ka ? -1 : kb > ka ? 1 : 0;
     });
     candidates.forEach(function (c) {
       var opt = document.createElement("option");
