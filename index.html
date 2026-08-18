@@ -46,6 +46,24 @@
   // mode specifically, is trusted here as a floor whenever it's plausibly this portrait screen's
   // real height (taller than its own width) and larger than what the viewport APIs reported —
   // never used to shrink anything, only to catch a viewport API silently under-reporting.
+  //
+  // HOW THIS GETS VERIFIED ACROSS DEVICES (worth knowing before touching viewport-sizing code
+  // again): headless Chrome + CDP device-metrics emulation (width/height/devicePixelRatio,
+  // scriptable via Runtime.evaluate over the DevTools Protocol) checks, on every change, that
+  // .phone fills the full viewport on phone-width profiles, caps and centers on tablet-width
+  // ones (see the min-width:481px media query below), the tab bar reaches the true bottom edge,
+  // the FAB stays inside the (possibly capped) app column, and every tab switches with no JS
+  // errors — run across a spread of real device dimensions: iPhone SE through 16 Pro Max,
+  // several Android phones (Pixel 5/7, Galaxy S21), and several tablets (iPad 10.2"/11"/12.9",
+  // a generic Android tablet). That catches CSS layout/responsiveness bugs at any screen size —
+  // but it CANNOT catch the specific bug this function exists for. window.innerHeight was wrong
+  // here not because of anything CSS or this app's own code did, but because the iOS engine
+  // itself handed every JS API — including window.innerHeight, window.visualViewport.height, and
+  // getBoundingClientRect() measured against them — the same incorrect number for one real
+  // device's standalone launch. No emulator or headless browser reproduces that; it was only
+  // ever visible on the actual affected hardware, and it's why window.screen.height (a
+  // genuinely different, independent API) is worth keeping as a cross-check rather than trusting
+  // any single "the browser told me so" viewport number, however many APIs agree with it.
   (function () {
     function authoritativeHeight() {
       var vv = window.visualViewport;
