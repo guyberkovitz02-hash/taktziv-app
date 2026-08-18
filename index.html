@@ -271,10 +271,20 @@
   .navbar { flex-shrink: 0; padding: 4px 18px 6px; min-height: 6px; text-align: center; font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
   .navbar-row { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 4px 14px 6px; min-height: 6px; }
   .navbar-row .navbar-title { font-size: 17px; font-weight: 800; color: var(--ink-hi); letter-spacing: -0.01em; }
-  .navbar-back-btn { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -9px -14px -15px; font-family: inherit; }
+  /* Back buttons always sit on the RIGHT with a trailing arrow pointing the way they'd slide —
+     matching where the finger starts an RTL back-swipe and what it points at when tapped. */
+  .navbar-back-btn { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -9px -14px -15px; font-family: inherit; display: flex; align-items: center; gap: 5px; }
+  #panel-budget .navbar-row { justify-content: flex-end; }
 
   .panel { display: none; flex: 1; min-height: 0; flex-direction: column; }
   .panel.active { display: flex; }
+  /* Budget Planning is entered only from Home's "back" affordance, never from the tab bar — so,
+     like the category drill-down, it behaves as a slide-in overlay with its own swipe-to-go-back
+     rather than a plain tab. The ID's specificity beats .panel/.panel.active above, so this stays
+     in effect regardless of the "active" class churn from ordinary tab switches. */
+  #panel-budget { position: absolute; inset: 0; z-index: 38; display: flex; transform: translateX(102%); transition: transform 0.32s cubic-bezier(.32,.72,0,1); }
+  #panel-budget.active { transform: translateX(0); }
+  .budget-edge-swipe { position: absolute; top: 0; bottom: 0; right: 0; width: 22px; z-index: 5; touch-action: none; }
   .scroll { flex: 1; overflow-y: auto; overscroll-behavior: none; padding: 4px 16px 18px; display: flex; flex-direction: column; gap: 18px; -webkit-overflow-scrolling: touch; }
   .scroll::-webkit-scrollbar { width: 0; }
 
@@ -560,19 +570,25 @@
   .sheet-backdrop.open { opacity: 1; pointer-events: auto; }
   .sheet { position: absolute; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--screen-g2) 88%, transparent); backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%); border-top: 1px solid var(--glass-border-strong); border-radius: 26px 26px 0 0; transform: translateY(100%); transition: transform 0.32s cubic-bezier(.32,.72,0,1); max-height: 88%; display: flex; flex-direction: column; z-index: 71; }
   .sheet-backdrop.open .sheet { transform: translateY(0); }
-  /* touch-action:none on the drag-initiation zones — without it, the browser can hand a touch
-     that starts here off to native panning mid-gesture (it's still inside a page that scrolls
-     elsewhere), which cuts the drag short with an early touchcancel instead of a clean drag-to-
-     dismiss. Taps on buttons inside .sheet-head are untouched — touch-action only governs
-     continuous gestures, not discrete tap/click recognition. */
-  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; touch-action: none; }
-  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); touch-action: none; }
+  .sheet-handle { width: 36px; height: 4px; border-radius: 10px; background: var(--divider); margin: 10px auto 4px; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 16px 10px; font-size: 15px; font-weight: 700; color: var(--ink-hi); }
   .sheet-head button { background: none; border: none; font-size: 14px; color: var(--brand-2); font-weight: 700; cursor: pointer; padding: 4px; font-family: inherit; }
   .sheet-body { overflow-y: auto; overscroll-behavior: none; padding: 4px 16px 22px; display: flex; flex-direction: column; gap: 18px; }
+
+  /* Add/edit transaction sheet — tinted green for income, pink/red for expense, echoing the
+     same --money-1/--spend-1 tokens used everywhere else a transaction's sign is shown. */
+  #sheetBackdrop.income .sheet { border-top-color: color-mix(in srgb, var(--money-1) 50%, var(--glass-border-strong)); }
+  #sheetBackdrop.expense .sheet { border-top-color: color-mix(in srgb, var(--spend-1) 50%, var(--glass-border-strong)); }
+  #sheetBackdrop.income .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--money-1) 14%, transparent), transparent); }
+  #sheetBackdrop.expense .sheet-head { background: linear-gradient(180deg, color-mix(in srgb, var(--spend-1) 14%, transparent), transparent); }
 
   .amount-field { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; padding: 10px 4px; border-bottom: 1px solid var(--divider); }
   .amount-field .sym { font-size: 18px; font-weight: 700; color: var(--ink-dim); }
   .amount-field input { border: none; background: none; outline: none; font-family: 'Rubik', -apple-system, sans-serif; font-size: 30px; font-weight: 800; color: var(--ink-hi); text-align: right; width: 100%; direction: rtl; letter-spacing: -0.02em; }
+  #sheetBackdrop.income .amount-field { border-bottom-color: color-mix(in srgb, var(--money-1) 55%, transparent); }
+  #sheetBackdrop.expense .amount-field { border-bottom-color: color-mix(in srgb, var(--spend-1) 55%, transparent); }
+  #sheetBackdrop.income .amount-field .sym, #sheetBackdrop.income .amount-field input { color: var(--money-1); }
+  #sheetBackdrop.expense .amount-field .sym, #sheetBackdrop.expense .amount-field input { color: var(--spend-1); }
 
   .field-label { font-size: 11.5px; font-weight: 700; color: var(--ink-dim); text-align: right; text-transform: uppercase; letter-spacing: 0.05em; }
   .text-field { border: 1px solid var(--glass-border); border-radius: 13px; padding: 11px 13px; font-size: 14px; text-align: right; background: var(--pill-bg); color: var(--ink-hi); outline: none; direction: rtl; font-family: inherit; width: 100%; }
@@ -582,6 +598,7 @@
   .auto-credit-toggle { align-items: center; gap: 8px; margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--ink-mid); cursor: pointer; }
   .auto-credit-toggle input { width: 18px; height: 18px; accent-color: var(--brand-1); flex-shrink: 0; }
   .save-btn { border: none; border-radius: 14px; padding: 14px 0; font-size: 14.5px; font-weight: 700; color: #fff; cursor: pointer; background: linear-gradient(135deg, var(--money-1), var(--money-2)); box-shadow: 0 14px 26px -12px rgba(61,242,166,0.5); font-family: inherit; }
+  #sheetBackdrop.expense .save-btn { background: linear-gradient(135deg, var(--spend-1), var(--spend-2)); box-shadow: 0 14px 26px -12px rgba(255,69,115,0.5); }
   .delete-btn { border: none; background: none; color: var(--spend-1); font-size: 13px; font-weight: 700; cursor: pointer; text-align: center; padding: 4px; font-family: inherit; }
   .toast-note { max-width: 375px; text-align: center; font-size: 12px; color: var(--ink-mid); line-height: 1.6; }
 
@@ -595,7 +612,7 @@
   /* touch-action:none so a swipe-back starting on the header or the edge strip is never handed
      off to native panning mid-gesture (see the matching .sheet-handle comment above). */
   .drill-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 14px 10px; touch-action: none; }
-  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -15px -14px; font-family: inherit; }
+  .drill-head button { background: none; border: none; color: var(--brand-2); font-size: 19px; font-weight: 700; cursor: pointer; padding: 15px 14px; margin: -15px -14px; font-family: inherit; display: flex; align-items: center; gap: 5px; }
   .drill-head .ttl { font-size: 15px; font-weight: 800; color: var(--ink-hi); }
   .drill-edit-row { display: none; gap: 8px; align-items: center; margin-top: 4px; }
   .drill-edit-row.show { display: flex; }
@@ -800,8 +817,9 @@
 
           <!-- BUDGET PLANNING -->
           <div class="panel" id="panel-budget">
+            <div class="budget-edge-swipe" id="budgetEdgeSwipe" aria-hidden="true"></div>
             <div class="navbar-row">
-              <button id="budgetBackBtn" class="navbar-back-btn">חזרה</button>
+              <button id="budgetBackBtn" class="navbar-back-btn"><span>חזרה</span><svg width="8" height="13" viewBox="0 0 9 15" fill="none" aria-hidden="true"><path d="M1 1L7.5 7.5L1 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
             <div class="scroll" id="budget-scroll">
               <div class="month-switch">
@@ -973,9 +991,9 @@
           <div class="drill-overlay" id="drillOverlay">
             <div class="drill-edge-swipe" id="drillEdgeSwipe" aria-hidden="true"></div>
             <div class="drill-head">
-              <button id="drillBack">חזרה</button>
-              <span class="ttl" id="drillTitle"></span>
               <span style="width:56px;"></span>
+              <span class="ttl" id="drillTitle"></span>
+              <button id="drillBack"><span>חזרה</span><svg width="8" height="13" viewBox="0 0 9 15" fill="none" aria-hidden="true"><path d="M1 1L7.5 7.5L1 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             </div>
             <div class="scroll" id="drillScroll">
               <div style="display:flex;align-items:center;justify-content:flex-end;gap:12px;">
@@ -2140,7 +2158,14 @@
   on("heroBalance", "keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goToBudgetTab(); } });
   on("overageBanner", "click", goToBudgetTab);
   // Budget Planning has no tab-bar icon of its own — it's always reached from Home, so "back"
-  // always means going back there.
+  // always means going back there. Like the category drill-down, it slides in from the right and
+  // shares the exact same swipe-to-go-back mechanism (see closeOverlayLeft/makeSwipeBack above).
+  // Both exits go through selectTab("home") rather than just closeBudgetOverlay() — unlike the
+  // drill-down (which merely sits on top of whatever panel was already showing), opening Budget
+  // hides Home underneath via the ordinary tab-switch machinery, so getting back to a visible,
+  // correctly-active Home tab needs the real tab switch, not just the overlay's own close.
+  function closeBudgetOverlay() { closeOverlayLeft($("panel-budget"), "active"); }
+  makeSwipeBack($("panel-budget"), [document.querySelector("#panel-budget .navbar-row"), $("budgetEdgeSwipe")], function () { selectTab("home"); });
   on("budgetBackBtn", "click", function () { selectTab("home"); });
 
   delegate("legend", ".legend-item", function (el) { openDrill(el.getAttribute("data-cat"), state.currentMonth); });
@@ -2169,7 +2194,9 @@
     // The tab bar now stays reachable even while the category drill-down is open (see the
     // .drill-overlay z-index fix below) — so switching tabs from inside it must also close it,
     // or it'd keep sitting open underneath the newly selected tab in a stale, confusing state.
+    // Same reasoning for Budget Planning's own overlay.
     closeDrill();
+    closeBudgetOverlay();
     document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-tab") === tab); });
     $("tabHomeBtn").classList.toggle("active", tab === "home");
     document.querySelectorAll(".panel").forEach(function (p) { p.classList.remove("active"); });
@@ -2302,17 +2329,39 @@
     drillState.editing = true;
     renderDrill();
   }
-  function closeDrill() { $("drillOverlay").classList.remove("open"); }
   /**
-   * Swipe-to-go-back on the category drill-down, matching how it visually entered (sliding in
-   * from the right) — dragging rightward follows the finger and, past a distance or speed
-   * threshold, finishes the dismiss the same way tapping "back" does. Bound both to the header
-   * (grab it anywhere) and to a thin edge strip along the screen's right edge — the same edge a
-   * native push view's interactive-pop gesture starts from — so the whole scrollable body in
+   * Shared by every screen that opens by sliding in from the right and has a "back" affordance
+   * (the category drill-down, Budget Planning): closing always exits the same way, whether
+   * triggered by tapping "back" or by the swipe gesture below — the screen slides out to the
+   * LEFT (translateX negative), mirroring the finger's own right-to-left travel. This is a
+   * different path off-screen than the entrance (which still slides in FROM the right,
+   * untouched) — `openClass` only governs the entrance CSS transform, so the exit transform is
+   * driven directly here, then cleared once the animation finishes so the overlay is back in its
+   * class-driven, off-right resting state ready for the next open.
+   */
+  function closeOverlayLeft(overlay, openClass) {
+    if (!overlay.classList.contains(openClass)) return;
+    overlay.classList.remove(openClass);
+    overlay.style.transition = "";
+    overlay.style.transform = "translateX(-102%)";
+    clearTimeout(overlay._closeT);
+    overlay._closeT = setTimeout(function () {
+      overlay.style.transition = "none";
+      overlay.style.transform = "";
+      void overlay.offsetWidth; /* force reflow so the next open's transition isn't skipped */
+      overlay.style.transition = "";
+    }, 340);
+  }
+  /**
+   * Swipe-to-go-back, shared by the same overlays as closeOverlayLeft above: dragging
+   * right-to-left follows the finger and, past a distance or speed threshold, finishes the
+   * dismiss the same way tapping "back" does — the screen simply slides left and returns to the
+   * previous screen. Bound both to the given handle elements (e.g. the header, grabbable
+   * anywhere) and to a thin edge strip along the screen's right edge — the same edge a native
+   * RTL push view's interactive-pop gesture starts from — so the whole scrollable body in
    * between is left free for ordinary vertical scrolling.
    */
-  (function makeDrillDraggable() {
-    var overlay = $("drillOverlay"), head = document.querySelector(".drill-head"), edge = $("drillEdgeSwipe");
+  function makeSwipeBack(overlay, dragHandleEls, onDismiss) {
     var dragging = false, startX = 0, currentX = 0, startTime = 0, overlayWidth = 0;
     function onStart(e) {
       if (e.touches.length !== 1) return;
@@ -2322,26 +2371,30 @@
       overlayWidth = overlay.offsetWidth || 1;
       overlay.style.transition = "none";
     }
-    head.addEventListener("touchstart", onStart, { passive: true });
-    edge.addEventListener("touchstart", onStart, { passive: true });
+    dragHandleEls.forEach(function (el) { el.addEventListener("touchstart", onStart, { passive: true }); });
     overlay.addEventListener("touchmove", function (e) {
       if (!dragging || e.touches.length !== 1) return;
       currentX = e.touches[0].clientX;
-      var delta = Math.max(0, currentX - startX);
+      var delta = Math.min(0, currentX - startX);
       overlay.style.transform = "translateX(" + delta + "px)";
     }, { passive: true });
     function onEnd(e) {
       if (!dragging || (e.touches && e.touches.length > 0)) return;
       dragging = false;
-      overlay.style.transition = "";
-      overlay.style.transform = "";
-      var delta = Math.max(0, currentX - startX);
+      var delta = Math.min(0, currentX - startX);
       var elapsed = Math.max(1, Date.now() - startTime);
-      if (delta > overlayWidth * 0.28 || delta / elapsed > 0.6) closeDrill();
+      if (-delta > overlayWidth * 0.28 || -delta / elapsed > 0.6) {
+        onDismiss();
+      } else {
+        overlay.style.transition = "";
+        overlay.style.transform = "";
+      }
     }
     overlay.addEventListener("touchend", onEnd);
     overlay.addEventListener("touchcancel", onEnd);
-  })();
+  }
+  function closeDrill() { closeOverlayLeft($("drillOverlay"), "open"); }
+  makeSwipeBack($("drillOverlay"), [document.querySelector(".drill-head"), $("drillEdgeSwipe")], closeDrill);
   function renderDrill() {
     var cat = findCat(drillState.catId, false);
     var totals = computeTotals(drillState.monthKey);
@@ -2928,45 +2981,6 @@
     applyStoredPosition();
   })();
 
-  /**
-   * Swipe-down-to-dismiss for bottom sheets — dragging from the handle/header follows the
-   * finger in real time and springs back on release, unless the drag went far enough (or fast
-   * enough) to count as an intentional dismiss, matching the native iOS sheet gesture. Scoped
-   * to the handle/header only (never the scrollable body), so it can never fight with normal
-   * scrolling of the sheet's own content.
-   */
-  function makeSheetDraggable(backdropEl, sheetEl, dragHandleEls, onDismiss) {
-    var dragging = false, startY = 0, currentY = 0, startTime = 0, sheetHeight = 0;
-    function onStart(e) {
-      if (e.touches.length !== 1) return;
-      dragging = true;
-      startY = currentY = e.touches[0].clientY;
-      startTime = Date.now();
-      sheetHeight = sheetEl.offsetHeight || 1;
-      sheetEl.style.transition = "none";
-    }
-    function onMove(e) {
-      if (!dragging || e.touches.length !== 1) return;
-      currentY = e.touches[0].clientY;
-      var delta = Math.max(0, currentY - startY);
-      sheetEl.style.transform = "translateY(" + delta + "px)";
-    }
-    function onEnd(e) {
-      if (!dragging || (e.touches && e.touches.length > 0)) return;
-      dragging = false;
-      sheetEl.style.transition = "";
-      sheetEl.style.transform = "";
-      var delta = Math.max(0, currentY - startY);
-      var elapsed = Math.max(1, Date.now() - startTime);
-      var velocity = delta / elapsed; // px/ms
-      if (delta > sheetHeight * 0.28 || velocity > 0.6) onDismiss();
-    }
-    dragHandleEls.forEach(function (el) { el.addEventListener("touchstart", onStart, { passive: true }); });
-    sheetEl.addEventListener("touchmove", onMove, { passive: true });
-    sheetEl.addEventListener("touchend", onEnd);
-    sheetEl.addEventListener("touchcancel", onEnd);
-  }
-
   /* =====================================================================
    * FAB tap + add/edit transaction sheet
    * ===================================================================== */
@@ -2993,13 +3007,6 @@
       if (recBtn) recBtn.click();
     }
   });
-  makeSheetDraggable(
-    $("fabSheetBackdrop"),
-    $("fabSheetBackdrop").querySelector(".sheet"),
-    [$("fabSheetBackdrop").querySelector(".sheet-handle")],
-    function () { $("fabSheetBackdrop").classList.remove("open"); }
-  );
-
   /* =====================================================================
    * Long-press quick actions (edit / delete) — the fast path a native list app gives you
    * instead of forcing every edit or delete through the full detail screen. A plain tap still
@@ -3029,12 +3036,6 @@
     close: function () { $("quickActionsBackdrop").classList.remove("open"); }
   };
   on("quickActionsBackdrop", "click", function (e) { if (e.target === this) QuickActions.close(); });
-  makeSheetDraggable(
-    $("quickActionsBackdrop"),
-    $("quickActionsBackdrop").querySelector(".sheet"),
-    [$("quickActionsBackdrop").querySelector(".sheet-handle")],
-    QuickActions.close
-  );
 
   /**
    * Binds a long-press (~500ms) on rows matching `selector` inside `containerId`. Cancelled by
@@ -3100,9 +3101,13 @@
     var list = isIncome ? state.categoriesIncome : state.categoriesExpense;
     var isRecurringInstance = !!(editCtx && editCtx.tx.recurringId);
     sheetState.type = isRecurringInstance ? "recurring" : "oneTime";
-    sheetState.cat = editCtx ? editCtx.tx.cat : list[0].id;
+    // No default category — the customer must actively choose one every time (see doSave's
+    // validation); only an edit of an existing transaction pre-fills its real category.
+    sheetState.cat = editCtx ? editCtx.tx.cat : null;
     sheetState.paymentMethod = editCtx && editCtx.tx.paymentMethod ? editCtx.tx.paymentMethod : "credit";
 
+    backdrop.classList.toggle("income", isIncome);
+    backdrop.classList.toggle("expense", !isIncome);
     $("sheetTitle").textContent = editCtx ? (isIncome ? "עריכת הכנסה" : "עריכת הוצאה") : (isIncome ? "הכנסה חדשה" : "הוצאה חדשה");
     $("pickerLabel").textContent = isIncome ? "מקור" : "קטגוריה";
     $("amountInput").value = editCtx ? editCtx.tx.amount : "";
@@ -3153,12 +3158,6 @@
     setTimeout(function () { $("amountInput").focus(); }, 320);
   }
   function closeSheet() { backdrop.classList.remove("open"); }
-  makeSheetDraggable(
-    backdrop,
-    backdrop.querySelector(".sheet"),
-    [backdrop.querySelector(".sheet-handle"), backdrop.querySelector(".sheet-head")],
-    closeSheet
-  );
   function openEditSheet(monthKey, txId) {
     var data = ensureMonth(monthKey);
     var tx = data.items.find(function (t) { return t.id === txId; });
@@ -3302,6 +3301,10 @@
   function doSave() {
     var amount = parseFloat($("amountInput").value);
     if (!amount || amount <= 0) { $("amountInput").focus(); shake($("amountInput")); return; }
+    // No default category is ever pre-selected for a new entry (see openSheet) — the customer
+    // must actively choose one every time, so a save can never silently land in a category
+    // nobody meant to pick.
+    if (!sheetState.cat) { shake($("sheetCatGrid")); showToast("צריך לבחור קטגוריה קודם", 2200); return; }
     var note = $("noteInput").value.trim();
 
     if (sheetState.editCtx) {
