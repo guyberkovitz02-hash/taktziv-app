@@ -1,7 +1,7 @@
 // Bump this on every deploy that changes index.html/manifest/icons — it's what makes the
 // activate handler throw away the old cached shell and adopt the new one. Leaving it unchanged
 // means returning visitors keep seeing yesterday's cached version even after a real update.
-const CACHE_VERSION = "taktziv-shell-v21";
+const CACHE_VERSION = "taktziv-shell-v22";
 
 const APP_SHELL = [
   "./",
