@@ -710,6 +710,22 @@
   .auth-status { font-size: 12px; color: var(--ink-dim); text-align: center; }
   .auth-forgot-link { font-size: 12px; font-weight: 700; color: var(--brand-2); text-align: left; cursor: pointer; margin-top: -3px; }
 
+  /* First-run tutorial */
+  .onboarding-overlay { position: absolute; inset: 0; z-index: 300; background: rgba(3,4,8,0.7); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .onboarding-card { width: 100%; max-width: 300px; background: color-mix(in srgb, var(--screen-g2) 94%, transparent); backdrop-filter: blur(28px) saturate(160%); -webkit-backdrop-filter: blur(28px) saturate(160%); border: 1px solid var(--glass-border-strong); border-radius: 26px; box-shadow: 0 30px 60px -20px rgba(0,0,0,0.55); padding: 32px 26px 24px; text-align: center; animation: onboardingStepIn 0.3s ease; }
+  .onboarding-card.step-change { animation: onboardingStepIn 0.3s ease; }
+  @keyframes onboardingStepIn { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .onboarding-icon { font-size: 46px; margin-bottom: 14px; }
+  .onboarding-title { font-size: 17px; font-weight: 800; color: var(--ink-hi); margin: 0 0 10px; }
+  .onboarding-desc { font-size: 13.5px; color: var(--ink-mid); line-height: 1.65; margin: 0 0 22px; }
+  .onboarding-dots { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 22px; }
+  .onboarding-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--glass-border-strong); transition: background 0.2s ease, transform 0.2s ease; }
+  .onboarding-dot.active { background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); transform: scale(1.35); }
+  .onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .onboarding-skip { font-size: 12.5px; font-weight: 700; color: var(--ink-dim); cursor: pointer; padding: 8px; }
+  .onboarding-next { flex: 1; }
+  @media (prefers-reduced-motion: reduce) { .onboarding-card, .onboarding-card.step-change { animation: none; } }
+
   /* Personal Area — account identity card in Settings */
   .auth-profile-card { display: flex; flex-direction: column; gap: 10px; }
   .auth-profile-head { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
@@ -839,6 +855,16 @@
                 <div style="font-size:34px; margin-bottom:12px;">📭</div>
                 <div style="font-size:14.5px; font-weight:700; color:var(--ink-hi); margin-bottom:6px;">אין מידע לחודש זה</div>
                 <div style="font-size:12.5px; color:var(--ink-dim); line-height:1.6;">הקישו על + כדי להוסיף תנועה ולהתחיל לעקוב אחרי החודש הזה</div>
+              </div>
+
+              <!-- Shown only for the real current month with zero transactions ever recorded —
+                   a brand-new account's very first screen — distinct from #homeEmptyState above,
+                   which is for browsing an old, genuinely history-less past month. -->
+              <div id="homeGetStarted" style="display:none; text-align:center; padding:56px 24px;">
+                <div style="font-size:46px; margin-bottom:14px;">🌱</div>
+                <div style="font-size:17px; font-weight:800; color:var(--ink-hi); margin-bottom:8px;">בואו נתחיל!</div>
+                <div style="font-size:13px; color:var(--ink-dim); line-height:1.65; margin-bottom:24px; max-width:270px; margin-left:auto; margin-right:auto;">עדיין אין לכם תנועות החודש. תתחילו מהוספת ההכנסה הראשונה שלכם — ואז נעזור לכם להוסיף גם את ההוצאות הקבועות.</div>
+                <button class="save-btn" id="homeAddIncomeBtn" style="max-width:230px; margin:0 auto;">➕ הוספת הכנסה</button>
               </div>
 
               <div id="homeContent" style="display:flex; flex-direction:column; gap:18px;">
@@ -1086,7 +1112,7 @@
                 <div class="set-row"><span class="val" style="text-align:left;">💾 נשמר בדפדפן</span><span class="lbl">שמירת נתונים</span></div>
               </div>
               <div class="foot-note">כל הנתונים נשמרים אוטומטית בדפדפן שלכם (localStorage) ונטענים מחדש בכל פתיחה — כלום לא נמחק ברענון.</div>
-              <button class="chip-btn" id="resetDataBtn" style="align-self:center;">איפוס נתוני הדמו</button>
+              <button class="chip-btn" id="resetDataBtn" style="align-self:center;">איפוס כל הנתונים</button>
             </div>
           </div>
 
@@ -1291,6 +1317,24 @@
             </div>
           </div>
         </div>
+
+        <!-- First-run tutorial — shown once, right after a brand-new registration's welcome
+             modal closes (see window.__startOnboarding, wired from the cloud-backup script's
+             showWelcomeModal). A plain sequence of centered cards, not literal on-screen
+             arrows/spotlights — deliberately, so it reads as a calm little tour rather than
+             something fighting for attention over the real UI underneath. -->
+        <div class="onboarding-overlay" id="onboardingOverlay" style="display:none;">
+          <div class="onboarding-card">
+            <div class="onboarding-icon" id="onboardingIcon">👋</div>
+            <h2 class="onboarding-title" id="onboardingTitle"></h2>
+            <p class="onboarding-desc" id="onboardingDesc"></p>
+            <div class="onboarding-dots" id="onboardingDots"></div>
+            <div class="onboarding-actions">
+              <span class="onboarding-skip" id="onboardingSkipBtn">דלג</span>
+              <button class="save-btn onboarding-next" id="onboardingNextBtn" type="button">הבא</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1367,15 +1411,6 @@
       { id: "otherInc", name: "אחר", icon: "•••", color: "#9B9FC9", custom: false }
     ];
   }
-  function seedRecurring() {
-    return [
-      { id: "r1", title: "משכורת", cat: "salary", isIncome: true, amount: 14500, day: 1, active: true },
-      { id: "r2", title: "שכירות + ארנונה וחשמל", cat: "rent", isIncome: false, amount: 4850, day: 1, active: true },
-      { id: "r4", title: "ביטוח רכב", cat: "transport", isIncome: false, amount: 300, day: 2, active: true },
-      { id: "r5", title: "נטפליקס + ספוטיפיי", cat: "subs", isIncome: false, amount: 60, day: 1, active: true }
-    ];
-  }
-
   function seedNetWorthAccounts() {
     return [
       { id: "a1", name: 'עו"ש', amount: 18400, type: "asset" },
@@ -1397,7 +1432,7 @@
     nextId: 100,
     categoriesExpense: seedExpenseCategories(),
     categoriesIncome: seedIncomeCategories(),
-    recurring: seedRecurring(),
+    recurring: [],
     months: {},
     plans: {},
     budgets: {},
@@ -1408,28 +1443,6 @@
   function makeTx(isIncome, cat, amount, day, note, recurringId, month, paymentMethod) {
     state.nextId += 1;
     return { id: "t" + state.nextId, isIncome: isIncome, cat: cat, amount: amount, day: day, note: note || "", recurringId: recurringId || null, month: month || null, paymentMethod: isIncome ? null : (paymentMethod || "credit") };
-  }
-  function seedMonths() {
-    // Only the real "current" month ships with demo data. Anything before it is
-    // genuinely unrecorded — ensureMonth() won't fabricate a history for it.
-    // Every item explicitly freezes its own real month here (matching exactly what every other
-    // creation path already does via resolveCycleDay) — omitting it left these items with
-    // month:null, silently relying on itemRealMonth()'s bucket-key fallback instead of a true
-    // frozen date. That's indistinguishable from the real thing right up until an item can ever
-    // move between buckets, e.g. a budget-cycle switch reclassifying it — at which point a null
-    // month makes it re-derive its "real" date from whatever bucket it last happened to land in,
-    // instead of the date it actually occurred on.
-    var seedMonth = "2026-08";
-    var m = {};
-    m[seedMonth] = { items: [
-      makeTx(true, "salary", 14500, 1, "", "r1", seedMonth), makeTx(false, "rent", 4850, 1, "", "r2", seedMonth),
-      makeTx(false, "transport", 300, 2, "", "r4", seedMonth), makeTx(false, "subs", 60, 1, "", "r5", seedMonth),
-      makeTx(false, "food", 380, 5, "קניות לחודש", null, seedMonth), makeTx(false, "food", 210, 12, "", null, seedMonth),
-      makeTx(false, "fun", 180, 9, "קולנוע", null, seedMonth), makeTx(false, "health", 120, 7, "רופא שיניים", null, seedMonth),
-      makeTx(false, "shopping", 250, 15, "", null, seedMonth), makeTx(false, "events", 220, 20, "מתנת יום הולדת לאמא", null, seedMonth),
-      makeTx(false, "vacation", 640, 22, "מקדמה לטיסות", null, seedMonth), makeTx(false, "misc", 150, 18, "תיקון לרכב", null, seedMonth)
-    ]};
-    return m;
   }
 
   var saveWarningShown = false;
@@ -1445,22 +1458,77 @@
   // Bridge functions the cloud-backup script (loaded separately, has no access to this closure's
   // `state`, `Modal`, or `escapeHtml`) calls into. Kept to exactly what it actually needs.
   window.__getAppState = function () { return state; };
-  // Deliberately NOT "does localStorage have anything" — bootstrap() always writes seed data
-  // synchronously on first load, well before this is ever checked (it's only read later, async,
-  // once cloud auth resolves), so a raw Storage.load() check would already see that seed data
-  // and never offer a restore on a genuinely new device. justSeeded is what's actually meant.
+  // Deliberately NOT "does localStorage have anything" — bootstrap() always writes state to
+  // localStorage synchronously on first load (empty for a brand-new account, real data for a
+  // returning one), well before this is ever checked (it's only read later, async, once cloud
+  // auth resolves), so a raw Storage.load() check would already see that write and never offer
+  // a restore on a genuinely new device. justSeeded is what's actually meant.
   window.__hasLocalData = function () { return !justSeeded; };
   window.__offerCloudRestore = function (cloudData) { confirmRestore(cloudData); };
-  window.__openWelcomeModal = function (title, sub) {
+  // `startOnboarding` is only true right after a brand-new registration (see
+  // wasAuthActionRegister() in the cloud-backup script) — a returning login's welcome-back modal
+  // still just closes normally via the generic data-close wiring Modal.open() already does.
+  window.__openWelcomeModal = function (title, sub, startOnboarding) {
     Modal.open(
       '<div class="modal-body" style="text-align:center; padding-top:22px;">' +
       '<div style="font-size:38px; margin-bottom:6px;">👋</div>' +
       '<div style="font-size:16px; font-weight:800; color:var(--ink-hi); margin-bottom:6px;">' + escapeHtml(title) + "</div>" +
       '<div class="hint" style="text-align:center;">' + escapeHtml(sub) + "</div>" +
-      '<div class="modal-actions"><button class="modal-btn primary" data-close>קדימה</button></div>' +
+      '<div class="modal-actions"><button class="modal-btn primary" ' + (startOnboarding ? 'id="welcomeContinueBtn"' : "data-close") + ">קדימה</button></div>" +
       "</div>"
     );
+    if (startOnboarding) {
+      $("welcomeContinueBtn").addEventListener("click", function () {
+        Modal.close();
+        if (typeof window.__startOnboarding === "function") window.__startOnboarding();
+      });
+    }
   };
+
+  /* =====================================================================
+   * First-run tutorial — a short, skippable sequence of centered cards walking a brand-new
+   * account through what each part of the app is for, started only once (see
+   * window.__openWelcomeModal above) right after a fresh registration.
+   * ===================================================================== */
+  var ONBOARDING_STEPS = [
+    { icon: "👋", title: "ברוכים הבאים לתקציב!", desc: "האפליקציה שעוזרת לכם לראות בדיוק לאן הכסף הולך, ולתכנן קדימה בלי הפתעות. סיור קצר של דקה — ואתם מוכנים." },
+    { icon: "🏠", title: "מסך הבית", desc: "כאן תראו כמה נשאר לכם להוציא החודש לפי קטגוריות, ואת כל התנועות האחרונות שלכם במבט אחד." },
+    { icon: "➕", title: "הוספת תנועה", desc: "הכפתור הכחול באמצע התחתית תמיד שם — לחיצה עליו פותחת הוספת הכנסה או הוצאה, חד־פעמית או קבועה." },
+    { icon: "🎯", title: "תכנון תקציב", desc: "הקישו על היתרה הגדולה בראש מסך הבית כדי לקבוע יעד חיסכון חודשי, ולחלק תקציב לכל קטגוריה בנפרד." },
+    { icon: "🔁", title: "תנועות קבועות", desc: "משכורת, שכר דירה, מנויים — כל מה שחוזר כל חודש מגדירים פעם אחת בטאב \"קבועות\", והוא מתעדכן לבד." },
+    { icon: "✨", title: "עוד כלים שווים", desc: "בטאב \"קטגוריות\" מתאימים את הרשימה אישית, ובטאב \"שווי נקי\" עוקבים אחרי נכסים והתחייבויות לאורך זמן." }
+  ];
+  var onboardingStep = 0;
+  function renderOnboardingStep() {
+    var s = ONBOARDING_STEPS[onboardingStep];
+    $("onboardingIcon").textContent = s.icon;
+    $("onboardingTitle").textContent = s.title;
+    $("onboardingDesc").textContent = s.desc;
+    $("onboardingDots").innerHTML = ONBOARDING_STEPS.map(function (_, i) {
+      return '<span class="onboarding-dot' + (i === onboardingStep ? " active" : "") + '"></span>';
+    }).join("");
+    var isLast = onboardingStep === ONBOARDING_STEPS.length - 1;
+    $("onboardingNextBtn").textContent = isLast ? "בואו נתחיל" : "הבא";
+    // Restart the entrance animation on every step, not just the overlay's first appearance —
+    // toggling the class off and back on (with a forced reflow between) is what actually
+    // restarts a CSS animation on an element that never left the DOM.
+    var card = document.querySelector(".onboarding-card");
+    card.classList.remove("step-change");
+    void card.offsetWidth;
+    card.classList.add("step-change");
+  }
+  window.__startOnboarding = function () {
+    onboardingStep = 0;
+    renderOnboardingStep();
+    $("onboardingOverlay").style.display = "flex";
+  };
+  function closeOnboarding() { $("onboardingOverlay").style.display = "none"; }
+  on("onboardingNextBtn", "click", function () {
+    if (onboardingStep === ONBOARDING_STEPS.length - 1) { closeOnboarding(); return; }
+    onboardingStep++;
+    renderOnboardingStep();
+  });
+  on("onboardingSkipBtn", "click", closeOnboarding);
 
   /** Brief shake to flag an invalid field without a jarring alert. */
   function shake(el) {
@@ -1500,11 +1568,11 @@
       // Data saved before the budget-cycle setting existed has no `settings` object —
       // back-fill it as calendar mode, which is exactly how that data was always computed.
       if (!state.settings) state.settings = { cycleStartDay: 1 };
-      // One-time repair for data saved before every item reliably froze its own real month
-      // (see the seedMonths comment) — heal it now, permanently, using the bucket it's actually
-      // found in as the best available truth. This MUST happen before any possible cycle-mode
-      // reclassification: reclassifying first and healing after would instead freeze whatever
-      // bucket an item happened to land in post-move as if that had always been its true date.
+      // One-time repair for data saved before every item reliably froze its own real month —
+      // heal it now, permanently, using the bucket it's actually found in as the best available
+      // truth. This MUST happen before any possible cycle-mode reclassification: reclassifying
+      // first and healing after would instead freeze whatever bucket an item happened to land in
+      // post-move as if that had always been its true date.
       var healedAny = false;
       Object.keys(state.months).forEach(function (mk) {
         state.months[mk].items.forEach(function (t) {
@@ -1513,13 +1581,14 @@
       });
       if (healedAny) persist();
     } else {
-      // A brand-new install should always open on the real current month, not a date frozen
-      // at whenever this demo happened to be built — the seed data itself stays put as history.
+      // A brand-new account starts genuinely empty — no demo transactions, no seeded recurring
+      // rules — on the real current month/period, ready for the getting-started flow (see
+      // renderHome's isEmptyToday and doSave's first-ever-transaction check) to guide them
+      // through adding their first income and their fixed expenses.
       justSeeded = true;
       var today = todayMonthKey();
       state.currentMonth = today;
       state.budgetMonth = today;
-      state.months = seedMonths();
       persist();
     }
   }
@@ -2283,10 +2352,12 @@
 
     var totals = computeTotals(mk);
     var isEmptyPast = mk < today && totals.items.length === 0;
+    var isEmptyToday = mk === today && totals.items.length === 0;
     $("homeEmptyState").style.display = isEmptyPast ? "block" : "none";
-    $("homeContent").style.display = isEmptyPast ? "none" : "flex";
+    $("homeGetStarted").style.display = isEmptyToday ? "block" : "none";
+    $("homeContent").style.display = (isEmptyPast || isEmptyToday) ? "none" : "flex";
     $("futureMonthNote").style.display = mk > today ? "block" : "none";
-    if (isEmptyPast) { $("overageBanner").style.display = "none"; return; }
+    if (isEmptyPast || isEmptyToday) { $("overageBanner").style.display = "none"; return; }
 
     var plan = ensureMonthlyPlan(mk, totals.income, totals.expense);
     ensureBudgets(mk);
@@ -3282,6 +3353,9 @@
     if (fabDragJustMoved) return;
     $("fabSheetBackdrop").classList.add("open");
   });
+  // The getting-started button skips the income/expense picker entirely — for a brand-new,
+  // empty account, there's only one sensible first move anyway.
+  on("homeAddIncomeBtn", "click", function () { openSheet(true); });
   // The Recurring tab's own "+" reuses this same income/expense picker, then forces the sheet
   // straight into "recurring" mode — so it only ever creates a standing rule, never a one-time.
   var forceRecurringNext = false;
@@ -3703,6 +3777,10 @@
       return;
     }
 
+    // Captured before this transaction is actually added — drives the guided getting-started
+    // chain below (see triggerGuidedRecurringExpensePrompt), which only ever fires for the very
+    // first transaction a genuinely new account ever records.
+    var wasFirstEver = !hasAnyTransactionsEver();
     var todayRawDay = new Date().getDate();
     // The date field only exists for one-time entries -- a "recurring" pick still uses its own
     // day-of-month field below, untouched by whatever the date select last happened to show.
@@ -3742,6 +3820,25 @@
     persist();
     closeSheet();
     refreshAfterDataChange(state.currentMonth);
+    // Only for the very first income a brand-new account ever records — the natural next step
+    // in the getting-started order (income, then fixed expenses) isn't something that should
+    // ever re-trigger later just because someone happens to clear their data back to zero, so
+    // this deliberately keys off "was this the first transaction ever," not "is the account new."
+    if (wasFirstEver && sheetState.isIncome) triggerGuidedRecurringExpensePrompt();
+  }
+  function hasAnyTransactionsEver() {
+    return Object.keys(state.months).some(function (mk) { return state.months[mk].items.length > 0; });
+  }
+  /** The other half of the getting-started order: right after the first income is saved, glide
+   * straight into adding a fixed expense — reusing the exact same "open sheet, force recurring
+   * mode" path the Recurring tab's own + button already uses (see forceRecurringNext above). */
+  function triggerGuidedRecurringExpensePrompt() {
+    showToast("🎉 עכשיו בואו נוסיף הוצאה קבועה", 2400);
+    setTimeout(function () {
+      openSheet(false);
+      var recBtn = document.querySelector('#typeSeg button[data-type="recurring"]');
+      if (recBtn) recBtn.click();
+    }, 900);
   }
   /** Shared by the sheet's own delete button and the long-press quick-actions sheet, so there's
    * exactly one place that knows how to remove a transaction. */
@@ -4127,7 +4224,7 @@
     var name = user.displayName || (user.email ? user.email.split("@")[0] : "");
     var title = wasRegister ? "ברוכים הבאים" + (name ? ", " + name : "") + "!" : "ברוך שובך" + (name ? ", " + name : "") + "!";
     var sub = wasRegister ? "החשבון שלכם נוצר בהצלחה — מוכנים להתחיל לעשות סדר." : "התחברתם בהצלחה.";
-    window.__openWelcomeModal(title, sub);
+    window.__openWelcomeModal(title, sub, wasRegister);
   }
 
   // Set for the span between createUserWithEmailAndPassword() resolving and its own
