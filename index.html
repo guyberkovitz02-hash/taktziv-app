@@ -701,6 +701,17 @@
   .auth-submit-btn { margin-top: 2px; }
   .auth-submit-btn:disabled { opacity: 0.7; }
   .auth-status { font-size: 12px; color: var(--ink-dim); text-align: center; }
+  .auth-forgot-link { font-size: 12px; font-weight: 700; color: var(--brand-2); text-align: left; cursor: pointer; margin-top: -3px; }
+
+  /* Personal Area — account identity card in Settings */
+  .auth-profile-card { display: flex; flex-direction: column; gap: 10px; }
+  .auth-profile-head { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }
+  .auth-profile-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+  .auth-profile-avatar-fallback { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); color: #fff; font-weight: 800; font-size: 16px; }
+  .auth-profile-info { flex: 1; min-width: 0; text-align: right; }
+  .auth-profile-name { font-size: 14.5px; font-weight: 700; color: var(--ink-hi); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .auth-profile-email { font-size: 12px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+  .auth-signout-btn { color: var(--spend-1); border-color: color-mix(in srgb, var(--spend-1) 45%, transparent); background: color-mix(in srgb, var(--spend-1) 10%, transparent); }
 
   .color-grid { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 8px; justify-content: flex-end; }
   .color-dot { position: relative; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
@@ -1018,7 +1029,23 @@
           <div class="panel" id="panel-settings">
             <div class="navbar">הגדרות</div>
             <div class="scroll">
-              <div class="section-title">מראה</div>
+              <div class="section-title">אזור אישי</div>
+              <div class="card auth-profile-card">
+                <div class="auth-profile-head">
+                  <img class="auth-profile-avatar" id="authProfileAvatar" alt="" style="display:none;" />
+                  <div class="auth-profile-avatar auth-profile-avatar-fallback" id="authProfileAvatarFallback"></div>
+                  <div class="auth-profile-info">
+                    <div class="auth-profile-name" id="authProfileName">—</div>
+                    <div class="auth-profile-email" id="authProfileEmail">—</div>
+                  </div>
+                </div>
+                <div class="set-row"><span class="val" id="authProfileMethod">—</span><span class="lbl">אמצעי התחברות</span></div>
+                <div class="set-row"><span class="val" id="authProfileMemberSince">—</span><span class="lbl">חבר/ה מאז</span></div>
+                <div class="set-row"><span class="val" id="authProfileLastLogin">—</span><span class="lbl">כניסה אחרונה</span></div>
+              </div>
+              <button class="chip-btn auth-signout-btn" id="authSignOutBtn" style="align-self:center;">התנתקות</button>
+
+              <div class="section-title" style="margin-top:6px;">מראה</div>
               <div class="seg" id="themeSeg">
                 <button data-theme="light">בהיר</button>
                 <button data-theme="dark">כהה</button>
@@ -1240,6 +1267,7 @@
               </div>
               <input class="text-field" id="authEmail" placeholder="אימייל" type="email" inputmode="email" autocomplete="email" />
               <input class="text-field" id="authPassword" placeholder="סיסמה" type="password" autocomplete="current-password" />
+              <div class="auth-forgot-link" id="authForgotBtn">שכחתי סיסמה</div>
               <div class="hint auth-error" id="authError" style="display:none;"></div>
               <button class="save-btn auth-submit-btn" id="authSubmitBtn" type="submit">התחברות</button>
             </form>
@@ -1399,7 +1427,7 @@
   }
 
   // Bridge functions the cloud-backup script (loaded separately, has no access to this closure's
-  // `state`) calls into. Kept to exactly the three things it actually needs.
+  // `state`, `Modal`, or `escapeHtml`) calls into. Kept to exactly what it actually needs.
   window.__getAppState = function () { return state; };
   // Deliberately NOT "does localStorage have anything" — bootstrap() always writes seed data
   // synchronously on first load, well before this is ever checked (it's only read later, async,
@@ -1407,6 +1435,16 @@
   // and never offer a restore on a genuinely new device. justSeeded is what's actually meant.
   window.__hasLocalData = function () { return !justSeeded; };
   window.__offerCloudRestore = function (cloudData) { confirmRestore(cloudData); };
+  window.__openWelcomeModal = function (title, sub) {
+    Modal.open(
+      '<div class="modal-body" style="text-align:center; padding-top:22px;">' +
+      '<div style="font-size:38px; margin-bottom:6px;">👋</div>' +
+      '<div style="font-size:16px; font-weight:800; color:var(--ink-hi); margin-bottom:6px;">' + escapeHtml(title) + "</div>" +
+      '<div class="hint" style="text-align:center;">' + escapeHtml(sub) + "</div>" +
+      '<div class="modal-actions"><button class="modal-btn primary" data-close>קדימה</button></div>' +
+      "</div>"
+    );
+  };
 
   /** Brief shake to flag an invalid field without a jarring alert. */
   function shake(el) {
@@ -3819,6 +3857,31 @@
     authRevealed = true;
     authOverlay.classList.add("hidden");
   }
+  // True only while the user is actively mid sign-in/registration (set right before the Google
+  // redirect or form submit fires) — the welcome message below fires off this, not off every
+  // onAuthStateChanged call, so a returning user whose session Firebase silently restores on
+  // page load never sees it; only someone who just went through the screen does. Backed by
+  // sessionStorage rather than a plain variable because signInWithRedirect() means a real,
+  // full-page round trip to Google and back — a normal JS variable wouldn't survive that reload,
+  // sessionStorage does (and clears itself once the tab closes, so it can't leak into a later
+  // unrelated session).
+  function setAuthActionPending(pending, wasRegister) {
+    if (pending) {
+      sessionStorage.setItem("taktziv:authActionPending", "1");
+      sessionStorage.setItem("taktziv:authActionWasRegister", wasRegister ? "1" : "0");
+    } else {
+      sessionStorage.removeItem("taktziv:authActionPending");
+      sessionStorage.removeItem("taktziv:authActionWasRegister");
+    }
+  }
+  function isAuthActionPending() { try { return sessionStorage.getItem("taktziv:authActionPending") === "1"; } catch (e) { return false; } }
+  function wasAuthActionRegister() { try { return sessionStorage.getItem("taktziv:authActionWasRegister") === "1"; } catch (e) { return false; } }
+  // A signed-in session is remembered indefinitely by Firebase itself, but "remembered forever"
+  // isn't the same as "should never ask again" — for a personal-finance app that's fine for
+  // regular use but not for a device left signed in and forgotten. 60 days of inactivity (a
+  // sliding window measured from Firebase's own lastSignInTime, so normal daily/weekly use never
+  // sees it) is the balance struck here between that and not nagging a habitual user.
+  var AUTH_SESSION_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 
   var AUTH_ERROR_HE = {
     "auth/invalid-email": "כתובת האימייל לא תקינה.",
@@ -3880,18 +3943,33 @@
         var phone = document.getElementById("authPhone").value.trim();
         if (!firstName || !lastName) { showAuthError("צריך למלא שם פרטי ושם משפחה."); return; }
         setAuthBusy(true, "יוצרים חשבון…");
+        setAuthActionPending(true, true);
+        registrationProfileInProgress = true;
         firebase.auth().createUserWithEmailAndPassword(email, password).then(function (cred) {
           return cred.user.updateProfile({ displayName: firstName + " " + lastName }).then(function () {
             return firebase.firestore().collection("users").doc(cred.user.uid).set({
               firstName: firstName, lastName: lastName, phone: phone, email: email,
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
+          }).then(function () {
+            registrationProfileInProgress = false;
+            handleSignedIn(cred.user); // only now is displayName actually attached — see registrationProfileInProgress above
           });
-        }).catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+        }).catch(function (err) {
+          registrationProfileInProgress = false;
+          // The account itself may already exist even though this later step failed (e.g. the
+          // Firestore profile write) — let them in rather than stranding a real, signed-in
+          // account behind the gate over a secondary write.
+          if (firebase.auth().currentUser) handleSignedIn(firebase.auth().currentUser);
+          else setAuthActionPending(false);
+          setAuthBusy(false);
+          showAuthError(friendlyAuthError(err));
+        });
       } else {
         setAuthBusy(true, "מתחברים…");
+        setAuthActionPending(true, false);
         firebase.auth().signInWithEmailAndPassword(email, password)
-          .catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+          .catch(function (err) { setAuthActionPending(false); setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
       }
     });
 
@@ -3899,9 +3977,93 @@
       clearAuthError();
       if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { showAuthError("ההתחברות לא זמינה כרגע — נסו שוב מאוחר יותר."); return; }
       setAuthBusy(true, "מעביר לגוגל…");
+      setAuthActionPending(true, false);
       firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider())
-        .catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+        .catch(function (err) { setAuthActionPending(false); setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
     });
+
+    var authForgotBtn = document.getElementById("authForgotBtn");
+    authForgotBtn.addEventListener("click", function () {
+      clearAuthError();
+      if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { showAuthError("ההתחברות לא זמינה כרגע — נסו שוב מאוחר יותר."); return; }
+      var email = document.getElementById("authEmail").value.trim();
+      if (!email) { showAuthError("צריך למלא קודם את כתובת האימייל למעלה."); return; }
+      setAuthBusy(true, "שולחים מייל…");
+      firebase.auth().sendPasswordResetEmail(email).then(function () {
+        setAuthBusy(false);
+        authStatusEl.style.display = "block";
+        authStatusEl.textContent = "נשלח מייל לאיפוס סיסמה ל-" + email + ".";
+      }).catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+    });
+  }
+
+  var authSignOutBtn = document.getElementById("authSignOutBtn");
+  if (authSignOutBtn) {
+    authSignOutBtn.addEventListener("click", function () {
+      if (typeof firebase === "undefined") return;
+      authSignOutBtn.disabled = true;
+      authSignOutBtn.textContent = "מתנתקים…";
+      // A full reload after sign-out is the simplest way to get every piece of UI (the auth
+      // form back to its default login state, #authOverlay back up, cloudUid cleared) into a
+      // clean, correct starting state — trying to unwind all of that by hand risks leaving some
+      // stray bit of "still signed in" state behind.
+      firebase.auth().signOut().then(function () { window.location.reload(); }).catch(function () { window.location.reload(); });
+    });
+  }
+
+  /** Fills in the Personal Area card in Settings — real photo if Google supplied one, otherwise
+   * a colored initial matching the same brand gradient used elsewhere in the app. */
+  function populateAuthProfile(user) {
+    var nameEl = document.getElementById("authProfileName");
+    var emailEl = document.getElementById("authProfileEmail");
+    var methodEl = document.getElementById("authProfileMethod");
+    var sinceEl = document.getElementById("authProfileMemberSince");
+    var lastEl = document.getElementById("authProfileLastLogin");
+    var avatarImg = document.getElementById("authProfileAvatar");
+    var avatarFallback = document.getElementById("authProfileAvatarFallback");
+    if (!nameEl) return;
+    var name = user.displayName || (user.email ? user.email.split("@")[0] : "משתמש");
+    nameEl.textContent = name;
+    emailEl.textContent = user.email || "—";
+    var providerId = user.providerData[0] && user.providerData[0].providerId;
+    methodEl.textContent = providerId === "google.com" ? "Google" : "אימייל וסיסמה";
+    sinceEl.textContent = user.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString("he-IL") : "—";
+    lastEl.textContent = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime).toLocaleDateString("he-IL") : "—";
+    if (user.photoURL) {
+      avatarImg.src = user.photoURL;
+      avatarImg.style.display = "block";
+      avatarFallback.style.display = "none";
+    } else {
+      avatarImg.style.display = "none";
+      avatarFallback.style.display = "flex";
+      avatarFallback.textContent = name.charAt(0).toUpperCase();
+    }
+  }
+
+  function showWelcomeModal(user, wasRegister) {
+    if (typeof window.__openWelcomeModal !== "function") return;
+    var name = user.displayName || (user.email ? user.email.split("@")[0] : "");
+    var title = wasRegister ? "ברוכים הבאים" + (name ? ", " + name : "") + "!" : "ברוך שובך" + (name ? ", " + name : "") + "!";
+    var sub = wasRegister ? "החשבון שלכם נוצר בהצלחה — מוכנים להתחיל לעשות סדר." : "התחברתם בהצלחה.";
+    window.__openWelcomeModal(title, sub);
+  }
+
+  // Set for the span between createUserWithEmailAndPassword() resolving and its own
+  // updateProfile()+Firestore chain finishing (see the registration handler below). Without
+  // this, onAuthStateChanged — which fires the instant the account is created, before the
+  // display name is attached — would grab the user object too early and welcome someone by
+  // their raw email address instead of the name they just typed in.
+  var registrationProfileInProgress = false;
+  function handleSignedIn(user) {
+    cloudUid = user.uid;
+    setCloudStatus("connected");
+    maybeRestoreFromCloud();
+    populateAuthProfile(user);
+    if (isAuthActionPending()) {
+      showWelcomeModal(user, wasAuthActionRegister());
+      setAuthActionPending(false);
+    }
+    revealApp();
   }
 
   function initCloudBackup() {
@@ -3914,10 +4076,16 @@
         // call below) — real accounts only, so a null/anonymous user just means #authOverlay
         // stays up and waits for the sign-in/registration form or Google button.
         if (!user || user.isAnonymous) { setCloudStatus("disabled"); return; }
-        cloudUid = user.uid;
-        setCloudStatus("connected");
-        maybeRestoreFromCloud();
-        revealApp();
+        // A session older than AUTH_SESSION_MAX_AGE_MS (see its definition above) gets signed
+        // out instead of silently accepted — onAuthStateChanged fires again right after with
+        // user === null, which is what actually keeps #authOverlay up for a fresh sign-in.
+        var lastSignInAt = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime).getTime() : 0;
+        if (lastSignInAt && Date.now() - lastSignInAt > AUTH_SESSION_MAX_AGE_MS) {
+          firebase.auth().signOut();
+          return;
+        }
+        if (registrationProfileInProgress) return; // the registration handler will call handleSignedIn itself, once the name is actually attached
+        handleSignedIn(user);
       });
       // Resolves the pending redirect from signInWithRedirect(), if any — onAuthStateChanged
       // above reflects the real outcome either way, this is only here so a failed redirect
