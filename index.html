@@ -682,7 +682,7 @@
   .modal-btn.danger { background: color-mix(in srgb, var(--spend-1) 16%, transparent); color: var(--spend-1); }
 
   /* Sign-in / registration gate */
-  .auth-overlay { position: absolute; inset: 0; z-index: 500; background: linear-gradient(165deg, var(--screen-g1), var(--screen-g2)); display: flex; align-items: center; justify-content: center; padding: 28px 24px; opacity: 1; transition: opacity 0.35s ease; }
+  .auth-overlay { position: absolute; inset: 0; z-index: 500; background: linear-gradient(165deg, var(--screen-g1), var(--screen-g2)); display: flex; align-items: center; justify-content: center; padding: 28px 24px; opacity: 1; transition: opacity 0.35s ease; overflow-y: auto; overscroll-behavior: none; }
   .auth-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
   .auth-content { width: 100%; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: 13px; }
   .auth-logo { width: 84px; height: 84px; border-radius: 24px; box-shadow: 0 18px 40px -14px rgba(94,234,212,0.45), 0 0 0 1px var(--glass-border-strong); margin-bottom: 6px; }
@@ -3206,6 +3206,48 @@
     sheetEl.addEventListener("touchcancel", onEnd);
   }
 
+  /**
+   * Keyboard-avoidance for any full-screen form (the add/edit sheet, #authOverlay — the latter
+   * wired from the separate cloud-backup/auth script, hence exposing this globally). The
+   * on-screen keyboard shrinks window.visualViewport.height by roughly its own height but
+   * leaves window.innerHeight alone — and iOS Safari, especially in standalone PWA mode inside
+   * this app's position:fixed layout (see the viewport bug saga elsewhere in this file), doesn't
+   * reliably scroll a focused field clear of it on its own. So this does it by hand: a spacer
+   * appended to `spacerParentEl` grows to match the keyboard's height, giving that now-scrollable
+   * container real room to actually bring the focused field above the keyboard instead of
+   * stopping short at its own last field. `isOpenFn` gates all of it to only when the relevant
+   * overlay is actually the one currently showing.
+   */
+  window.__makeKeyboardAware = function (focusRootEl, spacerParentEl, isOpenFn) {
+    var kbSpacer = null;
+    function spacer() {
+      if (!kbSpacer) {
+        kbSpacer = document.createElement("div");
+        kbSpacer.style.cssText = "flex-shrink:0; height:0; transition:height 0.2s ease;";
+        spacerParentEl.appendChild(kbSpacer);
+      }
+      return kbSpacer;
+    }
+    var focusedEl = null;
+    function scrollFocusedIntoView() {
+      if (focusedEl && isOpenFn()) focusedEl.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+    focusRootEl.addEventListener("focusin", function (e) {
+      if (e.target.tagName !== "INPUT") return;
+      focusedEl = e.target;
+      setTimeout(scrollFocusedIntoView, 80);
+    });
+    focusRootEl.addEventListener("focusout", function () { focusedEl = null; });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", function () {
+        if (!isOpenFn()) return;
+        var kbHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
+        spacer().style.height = kbHeight + "px";
+        if (focusedEl) setTimeout(scrollFocusedIntoView, 60);
+      });
+    }
+  };
+
   /* =====================================================================
    * FAB tap + add/edit transaction sheet
    * ===================================================================== */
@@ -3582,45 +3624,10 @@
   on("sheetBackdrop", "click", function (e) { if (e.target === this) requestCloseSheet(); });
   makeSheetSwipeDown(backdrop.querySelector(".sheet"), [backdrop.querySelector(".sheet-handle"), backdrop.querySelector(".sheet-head")], requestCloseSheet);
 
-  /**
-   * Keyboard-avoidance for the now full-screen add/edit sheet. The on-screen keyboard shrinks
-   * window.visualViewport.height by roughly its own height but leaves window.innerHeight alone —
-   * and iOS Safari, especially in standalone PWA mode inside this app's position:fixed layout
-   * (see the viewport bug saga elsewhere in this file), doesn't reliably scroll a focused field
-   * clear of it on its own. So this does it by hand: a spacer at the bottom of the sheet grows to
-   * match the keyboard's height, giving the now-scrollable .sheet-body real room to actually
-   * bring the focused field above the keyboard instead of stopping short at its own last field.
-   */
-  (function () {
-    var kbSpacer = null;
-    function spacer() {
-      if (!kbSpacer) {
-        kbSpacer = document.createElement("div");
-        kbSpacer.id = "sheetKeyboardSpacer";
-        kbSpacer.style.cssText = "flex-shrink:0; height:0; transition:height 0.2s ease;";
-        backdrop.querySelector(".sheet-body").appendChild(kbSpacer);
-      }
-      return kbSpacer;
-    }
-    var focusedEl = null;
-    function scrollFocusedIntoView() {
-      if (focusedEl && backdrop.classList.contains("open")) focusedEl.scrollIntoView({ block: "center", behavior: "smooth" });
-    }
-    backdrop.addEventListener("focusin", function (e) {
-      if (e.target.tagName !== "INPUT") return;
-      focusedEl = e.target;
-      setTimeout(scrollFocusedIntoView, 80);
-    });
-    backdrop.addEventListener("focusout", function () { focusedEl = null; });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", function () {
-        if (!backdrop.classList.contains("open")) return;
-        var kbHeight = Math.max(0, window.innerHeight - window.visualViewport.height);
-        spacer().style.height = kbHeight + "px";
-        if (focusedEl) setTimeout(scrollFocusedIntoView, 60);
-      });
-    }
-  })();
+  // window.__makeKeyboardAware is defined once, globally, above (it's also used by #authOverlay,
+  // wired from the separate cloud-backup/auth script — see its own definition for why a
+  // hand-rolled spacer is needed at all instead of trusting the browser).
+  window.__makeKeyboardAware(backdrop, backdrop.querySelector(".sheet-body"), function () { return backdrop.classList.contains("open"); });
 
   function doSave() {
     var amount = parseFloat($("amountInput").value);
@@ -3947,21 +3954,20 @@
         registrationProfileInProgress = true;
         firebase.auth().createUserWithEmailAndPassword(email, password).then(function (cred) {
           return cred.user.updateProfile({ displayName: firstName + " " + lastName }).then(function () {
-            return firebase.firestore().collection("users").doc(cred.user.uid).set({
-              firstName: firstName, lastName: lastName, phone: phone, email: email,
-              createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          }).then(function () {
             registrationProfileInProgress = false;
             handleSignedIn(cred.user); // only now is displayName actually attached — see registrationProfileInProgress above
+            // Best-effort, same philosophy as cloud backup itself elsewhere in this file — the
+            // account is already fully created and the person is already in; a Firestore
+            // permission problem on this extra profile record shouldn't surface as a scary
+            // error over something that, from where they're standing, already worked.
+            firebase.firestore().collection("users").doc(cred.user.uid).set({
+              firstName: firstName, lastName: lastName, phone: phone, email: email,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(function () { /* ignore — the account and its displayName are already live either way */ });
           });
         }).catch(function (err) {
           registrationProfileInProgress = false;
-          // The account itself may already exist even though this later step failed (e.g. the
-          // Firestore profile write) — let them in rather than stranding a real, signed-in
-          // account behind the gate over a secondary write.
-          if (firebase.auth().currentUser) handleSignedIn(firebase.auth().currentUser);
-          else setAuthActionPending(false);
+          setAuthActionPending(false);
           setAuthBusy(false);
           showAuthError(friendlyAuthError(err));
         });
@@ -3976,10 +3982,28 @@
     authGoogleBtn.addEventListener("click", function () {
       clearAuthError();
       if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { showAuthError("ההתחברות לא זמינה כרגע — נסו שוב מאוחר יותר."); return; }
-      setAuthBusy(true, "מעביר לגוגל…");
+      setAuthBusy(true, "מתחברים עם גוגל…");
       setAuthActionPending(true, false);
-      firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider())
-        .catch(function (err) { setAuthActionPending(false); setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+      var provider = new firebase.auth.GoogleAuthProvider();
+      // Popup first, not redirect — in a standalone iOS PWA specifically, a full-page
+      // signInWithRedirect navigates away to accounts.google.com and can come back in a
+      // different browser context than the one that left (regular Safari instead of the
+      // home-screen app's own window), so the sign-in can succeed while the screen the user is
+      // actually looking at never finds out and just sits there looking like nothing happened.
+      // A popup keeps the whole exchange inside this same page/JS context, so it doesn't have
+      // that failure mode; redirect is kept only as the fallback for the environments where
+      // popups themselves don't work (blocked, or unsupported in this webview at all).
+      firebase.auth().signInWithPopup(provider).catch(function (err) {
+        var shouldFallBackToRedirect = err && (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment");
+        if (shouldFallBackToRedirect) {
+          firebase.auth().signInWithRedirect(provider)
+            .catch(function (err2) { setAuthActionPending(false); setAuthBusy(false); showAuthError(friendlyAuthError(err2)); });
+          return;
+        }
+        setAuthActionPending(false);
+        setAuthBusy(false);
+        showAuthError(friendlyAuthError(err));
+      });
     });
 
     var authForgotBtn = document.getElementById("authForgotBtn");
@@ -3995,6 +4019,12 @@
         authStatusEl.textContent = "נשלח מייל לאיפוס סיסמה ל-" + email + ".";
       }).catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
     });
+
+    // Defined in the main app script (it needs to be shared with the add/edit sheet's own
+    // keyboard-avoidance) and exposed globally for exactly this cross-script-block use.
+    if (typeof window.__makeKeyboardAware === "function") {
+      window.__makeKeyboardAware(authOverlay, document.querySelector(".auth-content"), function () { return !authOverlay.classList.contains("hidden"); });
+    }
   }
 
   var authSignOutBtn = document.getElementById("authSignOutBtn");
@@ -4066,12 +4096,20 @@
     revealApp();
   }
 
+  // Set the first time onAuthStateChanged fires at all, with ANY result — including a definite
+  // "nobody is signed in". The fallback timeout below must only ever act when Firebase never
+  // managed to tell us anything either way (dead network, CDN failure, misconfigured project);
+  // it must NOT act just because the visitor is still mid-form after 8 seconds, which would let
+  // an unauthenticated person straight into the app — exactly the gate this screen exists to be.
+  var authStateResolvedOnce = false;
+
   function initCloudBackup() {
     if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { setCloudStatus("disabled"); revealApp(); return; }
     try {
       firebase.initializeApp(firebaseConfig);
       setCloudStatus("connecting");
       firebase.auth().onAuthStateChanged(function (user) {
+        authStateResolvedOnce = true;
         // Anonymous users never existed under this flow (see the removed signInAnonymously()
         // call below) — real accounts only, so a null/anonymous user just means #authOverlay
         // stays up and waits for the sign-in/registration form or Google button.
@@ -4104,9 +4142,10 @@
     // A dead network (or a misconfigured project) on first-ever launch would otherwise leave
     // #authOverlay up forever with no way in — after a few seconds with no verdict either way,
     // let the user through to their local data rather than trapping them behind a gate that
-    // can't resolve. Once a real sign-in succeeds, revealApp() has already run and this is a
-    // no-op (see the authRevealed guard).
-    setTimeout(revealApp, 8000);
+    // can't resolve. Gated on authStateResolvedOnce so this can only ever fire when Firebase
+    // truly never responded — once it has (even with "no one's signed in"), this is a no-op and
+    // #authOverlay correctly stays up until a real sign-in happens.
+    setTimeout(function () { if (!authStateResolvedOnce) revealApp(); }, 8000);
   }
 
   window.__scheduleCloudSync = function () {
