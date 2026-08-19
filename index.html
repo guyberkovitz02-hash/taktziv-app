@@ -1260,8 +1260,8 @@
             <form id="authForm" autocomplete="on">
               <div class="auth-register-fields" id="authRegisterFields" style="display:none;">
                 <div class="auth-row">
-                  <input class="text-field" id="authFirstName" placeholder="שם פרטי" autocomplete="given-name" />
                   <input class="text-field" id="authLastName" placeholder="שם משפחה" autocomplete="family-name" />
+                  <input class="text-field" id="authFirstName" placeholder="שם פרטי" autocomplete="given-name" />
                 </div>
                 <input class="text-field" id="authPhone" placeholder="טלפון" type="tel" inputmode="tel" autocomplete="tel" />
               </div>
@@ -3936,6 +3936,17 @@
       });
     });
 
+    // Deliberately not a full RFC-5322 pattern — just "something@something.something" with no
+    // spaces, which is exactly the level of scrutiny "a real address at gmail/walla/whatever"
+    // calls for without rejecting real addresses over edge cases a stricter pattern would trip
+    // on.
+    var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Israeli mobile prefixes only (050/052/053/054/055/058), followed by exactly 7 more
+    // digits — 10 digits total. Applied to a digits-only version of whatever was typed, so
+    // "050-123-4567" or "050 123 4567" still validate; what actually gets saved is the clean
+    // digits-only form either way.
+    var IL_PHONE_RE = /^(050|052|053|054|055|058)\d{7}$/;
+
     authForm.addEventListener("submit", function (e) {
       e.preventDefault();
       clearAuthError();
@@ -3943,12 +3954,14 @@
       var email = document.getElementById("authEmail").value.trim();
       var password = document.getElementById("authPassword").value;
       if (!email || !password) { showAuthError("צריך למלא אימייל וסיסמה."); return; }
+      if (!EMAIL_RE.test(email)) { showAuthError("כתובת האימייל לא תקינה — צריך @ ואחריו תיבת מייל תקינה (כמו gmail.com, walla.co.il)."); return; }
 
       if (authMode === "register") {
         var firstName = document.getElementById("authFirstName").value.trim();
         var lastName = document.getElementById("authLastName").value.trim();
-        var phone = document.getElementById("authPhone").value.trim();
+        var phoneDigits = document.getElementById("authPhone").value.replace(/\D/g, "");
         if (!firstName || !lastName) { showAuthError("צריך למלא שם פרטי ושם משפחה."); return; }
+        if (!IL_PHONE_RE.test(phoneDigits)) { showAuthError("מספר טלפון לא תקין — נייד ישראלי עם קידומת 050/052/053/054/055/058 ואחריה 7 ספרות."); return; }
         setAuthBusy(true, "יוצרים חשבון…");
         setAuthActionPending(true, true);
         registrationProfileInProgress = true;
@@ -3961,7 +3974,7 @@
             // permission problem on this extra profile record shouldn't surface as a scary
             // error over something that, from where they're standing, already worked.
             firebase.firestore().collection("users").doc(cred.user.uid).set({
-              firstName: firstName, lastName: lastName, phone: phone, email: email,
+              firstName: firstName, lastName: lastName, phone: phoneDigits, email: email,
               createdAt: firebase.firestore.FieldValue.serverTimestamp()
             }).catch(function () { /* ignore — the account and its displayName are already live either way */ });
           });
@@ -4088,6 +4101,15 @@
     cloudUid = user.uid;
     setCloudStatus("connected");
     maybeRestoreFromCloud();
+    // Backs up data that's already sitting on this device the instant it's tied to a real
+    // account, rather than waiting for the next edit to trigger the normal persist()-driven
+    // sync — otherwise someone who signs in and closes the app without touching anything else
+    // would have real local data that's never actually reached their account. Only when there's
+    // genuinely local data to protect (window.__hasLocalData) — on a fresh device with nothing
+    // local yet, this is skipped entirely so it can never race the restore-from-cloud offer
+    // maybeRestoreFromCloud() may be about to make (pushing fresh seed data here first could
+    // otherwise clobber real cloud data before the user even sees that offer).
+    if (typeof window.__hasLocalData === "function" && window.__hasLocalData()) pushToCloud();
     populateAuthProfile(user);
     if (isAuthActionPending()) {
       showWelcomeModal(user, wasAuthActionRegister());
