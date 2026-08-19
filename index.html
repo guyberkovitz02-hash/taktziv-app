@@ -686,6 +686,13 @@
   .auth-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
   .auth-content { width: 100%; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: 13px; }
   .auth-logo { width: 84px; height: 84px; border-radius: 24px; box-shadow: 0 18px 40px -14px rgba(94,234,212,0.45), 0 0 0 1px var(--glass-border-strong); margin-bottom: 6px; }
+  /* Loading state — logo + quiet spinner only, no form; see the HTML comment above #authOverlay. */
+  .auth-loading-spinner { display: none; width: 26px; height: 26px; border-radius: 50%; border: 3px solid var(--glass-border-strong); border-top-color: var(--brand-1); }
+  .auth-overlay.loading .auth-loading-spinner { display: block; animation: fabRingSpin 0.8s linear infinite; }
+  .auth-overlay.loading .auth-form-wrap { display: none; }
+  .auth-form-wrap { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 13px; opacity: 1; animation: authFormIn 0.25s ease; }
+  @keyframes authFormIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .auth-loading-spinner, .auth-form-wrap { animation: none; } }
   .auth-headline { font-size: 20px; font-weight: 800; text-align: center; line-height: 1.45; color: var(--ink-hi); margin: 0 0 4px; }
   .auth-headline-accent { font-size: 26px; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .auth-mode-seg { width: 100%; margin-bottom: 2px; }
@@ -1235,44 +1242,53 @@
              flash of real app content before Firebase confirms who, if anyone, is signed in;
              the cloud-backup script's revealApp() hides it once a real (non-anonymous) account
              is confirmed, with a timeout fallback if Firebase never resolves at all. -->
-        <div class="auth-overlay" id="authOverlay">
+        <!-- Starts in "loading" state — only the logo + a quiet spinner, no form at all — so
+             someone who's already signed in (the common case on every later visit) never sees
+             the login form flash up for a moment before Firebase confirms their session and
+             this whole overlay hides; only once onAuthStateChanged actually reports back "no
+             one's signed in" does #authFormWrap appear (see removeAuthLoading() in the
+             cloud-backup script). -->
+        <div class="auth-overlay loading" id="authOverlay">
           <div class="auth-content">
             <img class="auth-logo" src="icons/icon-192.png" alt="תקציב" />
-            <h1 class="auth-headline">באנו לעשות לכם<br><span class="auth-headline-accent">סדר ותקציב</span></h1>
+            <div class="auth-loading-spinner" id="authLoadingSpinner" aria-hidden="true"></div>
+            <div class="auth-form-wrap" id="authFormWrap">
+              <h1 class="auth-headline">באנו לעשות לכם<br><span class="auth-headline-accent">סדר ותקציב</span></h1>
 
-            <div class="seg auth-mode-seg" id="authModeSeg">
-              <button class="active" data-mode="login" type="button">התחברות</button>
-              <button data-mode="register" type="button">הרשמה</button>
-            </div>
-
-            <button class="auth-google-btn" id="authGoogleBtn" type="button">
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
-                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-                <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
-                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
-              </svg>
-              <span>המשך עם Google</span>
-            </button>
-
-            <div class="auth-divider"><span>או</span></div>
-
-            <form id="authForm" autocomplete="on">
-              <div class="auth-register-fields" id="authRegisterFields" style="display:none;">
-                <div class="auth-row">
-                  <input class="text-field" id="authLastName" placeholder="שם משפחה" autocomplete="family-name" />
-                  <input class="text-field" id="authFirstName" placeholder="שם פרטי" autocomplete="given-name" />
-                </div>
-                <input class="text-field" id="authPhone" placeholder="טלפון" type="tel" inputmode="tel" autocomplete="tel" />
+              <div class="seg auth-mode-seg" id="authModeSeg">
+                <button class="active" data-mode="login" type="button">התחברות</button>
+                <button data-mode="register" type="button">הרשמה</button>
               </div>
-              <input class="text-field" id="authEmail" placeholder="אימייל" type="email" inputmode="email" autocomplete="email" />
-              <input class="text-field" id="authPassword" placeholder="סיסמה" type="password" autocomplete="current-password" />
-              <div class="auth-forgot-link" id="authForgotBtn">שכחתי סיסמה</div>
-              <div class="hint auth-error" id="authError" style="display:none;"></div>
-              <button class="save-btn auth-submit-btn" id="authSubmitBtn" type="submit">התחברות</button>
-            </form>
 
-            <div class="auth-status" id="authStatus" style="display:none;"></div>
+              <button class="auth-google-btn" id="authGoogleBtn" type="button">
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                  <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+                </svg>
+                <span>המשך עם Google</span>
+              </button>
+
+              <div class="auth-divider"><span>או</span></div>
+
+              <form id="authForm" autocomplete="on">
+                <div class="auth-register-fields" id="authRegisterFields" style="display:none;">
+                  <div class="auth-row">
+                    <input class="text-field" id="authLastName" placeholder="שם משפחה" autocomplete="family-name" />
+                    <input class="text-field" id="authFirstName" placeholder="שם פרטי" autocomplete="given-name" />
+                  </div>
+                  <input class="text-field" id="authPhone" placeholder="טלפון" type="tel" inputmode="tel" autocomplete="tel" />
+                </div>
+                <input class="text-field" id="authEmail" placeholder="אימייל" type="email" inputmode="email" autocomplete="email" />
+                <input class="text-field" id="authPassword" placeholder="סיסמה" type="password" autocomplete="current-password" />
+                <div class="auth-forgot-link" id="authForgotBtn">שכחתי סיסמה</div>
+                <div class="hint auth-error" id="authError" style="display:none;"></div>
+                <button class="save-btn auth-submit-btn" id="authSubmitBtn" type="submit">התחברות</button>
+              </form>
+
+              <div class="auth-status" id="authStatus" style="display:none;"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -3237,7 +3253,18 @@
       focusedEl = e.target;
       setTimeout(scrollFocusedIntoView, 80);
     });
-    focusRootEl.addEventListener("focusout", function () { focusedEl = null; });
+    focusRootEl.addEventListener("focusout", function () {
+      focusedEl = null;
+      // visualViewport's own "resize" doesn't always fire reliably for the keyboard-closing
+      // transition specifically on every real device — without this, the spacer (and therefore
+      // the whole layout) could stay pushed up even after the keyboard is long gone. Checked a
+      // beat later, after any immediate re-focus (e.g. tabbing from one field straight to the
+      // next) has had a chance to land — only collapse it if focus genuinely left the form
+      // rather than just moved within it.
+      setTimeout(function () {
+        if (!focusRootEl.contains(document.activeElement)) spacer().style.height = "0px";
+      }, 50);
+    });
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", function () {
         if (!isOpenFn()) return;
@@ -3864,6 +3891,14 @@
     authRevealed = true;
     authOverlay.classList.add("hidden");
   }
+  // Only called once onAuthStateChanged has actually confirmed "no one's signed in" — the form
+  // stays hidden behind a quiet spinner up until that point (see the "loading" class in the CSS
+  // and the HTML comment above #authOverlay) specifically so an already-signed-in visitor, the
+  // common case on every visit after the first, never sees the full login form flash into view
+  // for a moment before this whole overlay disappears via revealApp() instead.
+  function showAuthForm() {
+    if (authOverlay) authOverlay.classList.remove("loading");
+  }
   // True only while the user is actively mid sign-in/registration (set right before the Google
   // redirect or form submit fires) — the welcome message below fires off this, not off every
   // onAuthStateChanged call, so a returning user whose session Firebase silently restores on
@@ -4072,14 +4107,18 @@
     methodEl.textContent = providerId === "google.com" ? "Google" : "אימייל וסיסמה";
     sinceEl.textContent = user.metadata.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString("he-IL") : "—";
     lastEl.textContent = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime).toLocaleDateString("he-IL") : "—";
+    avatarFallback.textContent = name.charAt(0).toUpperCase();
     if (user.photoURL) {
+      // onerror covers the photo URL going stale/blocked after the fact (a broken-image icon
+      // would otherwise just sit there) — the fallback initial is already in place underneath
+      // by the time it could possibly fire, so this is a plain, instant swap either way.
+      avatarImg.onerror = function () { avatarImg.style.display = "none"; avatarFallback.style.display = "flex"; };
       avatarImg.src = user.photoURL;
       avatarImg.style.display = "block";
       avatarFallback.style.display = "none";
     } else {
       avatarImg.style.display = "none";
       avatarFallback.style.display = "flex";
-      avatarFallback.textContent = name.charAt(0).toUpperCase();
     }
   }
 
@@ -4135,7 +4174,7 @@
         // Anonymous users never existed under this flow (see the removed signInAnonymously()
         // call below) — real accounts only, so a null/anonymous user just means #authOverlay
         // stays up and waits for the sign-in/registration form or Google button.
-        if (!user || user.isAnonymous) { setCloudStatus("disabled"); return; }
+        if (!user || user.isAnonymous) { setCloudStatus("disabled"); showAuthForm(); return; }
         // A session older than AUTH_SESSION_MAX_AGE_MS (see its definition above) gets signed
         // out instead of silently accepted — onAuthStateChanged fires again right after with
         // user === null, which is what actually keeps #authOverlay up for a fresh sign-in.
