@@ -681,6 +681,27 @@
   .modal-btn.primary { background: linear-gradient(135deg, var(--money-1), var(--money-2)); color: #fff; }
   .modal-btn.danger { background: color-mix(in srgb, var(--spend-1) 16%, transparent); color: var(--spend-1); }
 
+  /* Sign-in / registration gate */
+  .auth-overlay { position: absolute; inset: 0; z-index: 500; background: linear-gradient(165deg, var(--screen-g1), var(--screen-g2)); display: flex; align-items: center; justify-content: center; padding: 28px 24px; opacity: 1; transition: opacity 0.35s ease; }
+  .auth-overlay.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+  .auth-content { width: 100%; max-width: 340px; display: flex; flex-direction: column; align-items: center; gap: 13px; }
+  .auth-logo { width: 84px; height: 84px; border-radius: 24px; box-shadow: 0 18px 40px -14px rgba(94,234,212,0.45), 0 0 0 1px var(--glass-border-strong); margin-bottom: 6px; }
+  .auth-headline { font-size: 20px; font-weight: 800; text-align: center; line-height: 1.45; color: var(--ink-hi); margin: 0 0 4px; }
+  .auth-headline-accent { font-size: 26px; background: linear-gradient(135deg, var(--brand-1), var(--brand-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .auth-mode-seg { width: 100%; margin-bottom: 2px; }
+  .auth-google-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; background: #fff; color: #3c4043; border: none; border-radius: 13px; padding: 13px 0; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: 0 10px 24px -12px rgba(0,0,0,0.35); }
+  .auth-google-btn:disabled { opacity: 0.6; }
+  .auth-divider { width: 100%; display: flex; align-items: center; gap: 10px; color: var(--ink-dim); font-size: 11.5px; }
+  .auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--divider); }
+  #authForm { width: 100%; display: flex; flex-direction: column; gap: 9px; }
+  .auth-register-fields { display: flex; flex-direction: column; gap: 9px; }
+  .auth-row { display: flex; gap: 9px; }
+  .auth-row .text-field { flex: 1; min-width: 0; }
+  .auth-error { color: var(--spend-1); text-align: center; }
+  .auth-submit-btn { margin-top: 2px; }
+  .auth-submit-btn:disabled { opacity: 0.7; }
+  .auth-status { font-size: 12px; color: var(--ink-dim); text-align: center; }
+
   .color-grid { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 8px; justify-content: flex-end; }
   .color-dot { position: relative; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
   .color-dot.selected::after { content: "✓"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; font-weight: 800; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
@@ -1181,6 +1202,50 @@
         <!-- Generic centered modal: recurring detail / category editor -->
         <div class="modal-backdrop" id="modalBackdrop">
           <div class="modal-box" id="modalBox"></div>
+        </div>
+
+        <!-- Sign-in / registration gate — visible by default (blocking) so there's never a
+             flash of real app content before Firebase confirms who, if anyone, is signed in;
+             the cloud-backup script's revealApp() hides it once a real (non-anonymous) account
+             is confirmed, with a timeout fallback if Firebase never resolves at all. -->
+        <div class="auth-overlay" id="authOverlay">
+          <div class="auth-content">
+            <img class="auth-logo" src="icons/icon-192.png" alt="תקציב" />
+            <h1 class="auth-headline">באנו לעשות לכם<br><span class="auth-headline-accent">סדר ותקציב</span></h1>
+
+            <div class="seg auth-mode-seg" id="authModeSeg">
+              <button class="active" data-mode="login" type="button">התחברות</button>
+              <button data-mode="register" type="button">הרשמה</button>
+            </div>
+
+            <button class="auth-google-btn" id="authGoogleBtn" type="button">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+                <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                <path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/>
+                <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/>
+              </svg>
+              <span>המשך עם Google</span>
+            </button>
+
+            <div class="auth-divider"><span>או</span></div>
+
+            <form id="authForm" autocomplete="on">
+              <div class="auth-register-fields" id="authRegisterFields" style="display:none;">
+                <div class="auth-row">
+                  <input class="text-field" id="authFirstName" placeholder="שם פרטי" autocomplete="given-name" />
+                  <input class="text-field" id="authLastName" placeholder="שם משפחה" autocomplete="family-name" />
+                </div>
+                <input class="text-field" id="authPhone" placeholder="טלפון" type="tel" inputmode="tel" autocomplete="tel" />
+              </div>
+              <input class="text-field" id="authEmail" placeholder="אימייל" type="email" inputmode="email" autocomplete="email" />
+              <input class="text-field" id="authPassword" placeholder="סיסמה" type="password" autocomplete="current-password" />
+              <div class="hint auth-error" id="authError" style="display:none;"></div>
+              <button class="save-btn auth-submit-btn" id="authSubmitBtn" type="submit">התחברות</button>
+            </form>
+
+            <div class="auth-status" id="authStatus" style="display:none;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -3707,11 +3772,14 @@
 </script>
 
 <!--
-  CLOUD BACKUP — Firebase (Firestore + Anonymous Auth). Each device signs in anonymously and
-  gets its own permanent, private identity with no login screen — its data backs up under that
-  identity alone, never shared with the other phone. Loaded from Firebase's CDN, so it needs
-  network the first time; the app's own core functionality never depends on it and keeps working
-  fully offline exactly as before regardless of whether this loads or succeeds.
+  CLOUD BACKUP + SIGN-IN — Firebase (Firestore + Auth). #authOverlay gates the app until a real
+  (non-anonymous) account is signed in — Google or email/password — after which Firebase's own
+  session persistence keeps it out of the way on every later visit. Once signed in, that same
+  account's uid is what backs up under. Loaded from Firebase's CDN, so it needs network the
+  first time; a dead network or misconfigured project falls back to letting the user straight
+  into their local data instead of trapping them behind a gate that can never resolve (see the
+  fallback timeout in initCloudBackup below) — cloud backup itself stays best-effort exactly as
+  before, never something the app's core functionality depends on.
 -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -3741,21 +3809,136 @@
     if (typeof window.__updateCloudStatusUI === "function") window.__updateCloudStatusUI();
   }
 
+  /* =====================================================================
+   * #authOverlay — gates the app until a real account is signed in
+   * ===================================================================== */
+  var authOverlay = document.getElementById("authOverlay");
+  var authRevealed = false;
+  function revealApp() {
+    if (authRevealed || !authOverlay) return;
+    authRevealed = true;
+    authOverlay.classList.add("hidden");
+  }
+
+  var AUTH_ERROR_HE = {
+    "auth/invalid-email": "כתובת האימייל לא תקינה.",
+    "auth/user-not-found": "לא נמצא חשבון עם הפרטים האלה.",
+    "auth/wrong-password": "סיסמה שגויה.",
+    "auth/invalid-credential": "אימייל או סיסמה שגויים.",
+    "auth/email-already-in-use": "כבר קיים חשבון עם האימייל הזה — נסו להתחבר במקום.",
+    "auth/weak-password": "הסיסמה קצרה מדי — לפחות 6 תווים.",
+    "auth/network-request-failed": "אין חיבור לאינטרנט. נסו שוב.",
+    "auth/too-many-requests": "יותר מדי נסיונות — נסו שוב בעוד כמה דקות.",
+    "auth/popup-closed-by-user": "ההתחברות בוטלה.",
+    "auth/cancelled-popup-request": "ההתחברות בוטלה.",
+    "auth/operation-not-allowed": "ההתחברות הזו עדיין לא הופעלה במערכת — פנו למי שמתפעל את האפליקציה.",
+    "auth/unauthorized-domain": "הכתובת הזו עדיין לא מאושרת להתחברות — פנו למי שמתפעל את האפליקציה."
+  };
+  function friendlyAuthError(err) { return (err && AUTH_ERROR_HE[err.code]) || "משהו השתבש. נסו שוב."; }
+
+  if (authOverlay) {
+    var authModeSeg = document.getElementById("authModeSeg");
+    var authRegisterFields = document.getElementById("authRegisterFields");
+    var authForm = document.getElementById("authForm");
+    var authSubmitBtn = document.getElementById("authSubmitBtn");
+    var authErrorEl = document.getElementById("authError");
+    var authStatusEl = document.getElementById("authStatus");
+    var authGoogleBtn = document.getElementById("authGoogleBtn");
+    var authMode = "login";
+
+    var showAuthError = function (msg) { authErrorEl.textContent = msg; authErrorEl.style.display = "block"; };
+    var clearAuthError = function () { authErrorEl.style.display = "none"; };
+    var setAuthBusy = function (busy, label) {
+      authSubmitBtn.disabled = busy;
+      authGoogleBtn.disabled = busy;
+      authStatusEl.style.display = busy ? "block" : "none";
+      if (busy) authStatusEl.textContent = label || "רגע…";
+    };
+
+    authModeSeg.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        authModeSeg.querySelectorAll("button").forEach(function (x) { x.classList.remove("active"); });
+        b.classList.add("active");
+        authMode = b.getAttribute("data-mode");
+        authRegisterFields.style.display = authMode === "register" ? "flex" : "none";
+        authSubmitBtn.textContent = authMode === "register" ? "הרשמה" : "התחברות";
+        clearAuthError();
+      });
+    });
+
+    authForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearAuthError();
+      if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { showAuthError("ההתחברות לא זמינה כרגע — נסו שוב מאוחר יותר."); return; }
+      var email = document.getElementById("authEmail").value.trim();
+      var password = document.getElementById("authPassword").value;
+      if (!email || !password) { showAuthError("צריך למלא אימייל וסיסמה."); return; }
+
+      if (authMode === "register") {
+        var firstName = document.getElementById("authFirstName").value.trim();
+        var lastName = document.getElementById("authLastName").value.trim();
+        var phone = document.getElementById("authPhone").value.trim();
+        if (!firstName || !lastName) { showAuthError("צריך למלא שם פרטי ושם משפחה."); return; }
+        setAuthBusy(true, "יוצרים חשבון…");
+        firebase.auth().createUserWithEmailAndPassword(email, password).then(function (cred) {
+          return cred.user.updateProfile({ displayName: firstName + " " + lastName }).then(function () {
+            return firebase.firestore().collection("users").doc(cred.user.uid).set({
+              firstName: firstName, lastName: lastName, phone: phone, email: email,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          });
+        }).catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+      } else {
+        setAuthBusy(true, "מתחברים…");
+        firebase.auth().signInWithEmailAndPassword(email, password)
+          .catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+      }
+    });
+
+    authGoogleBtn.addEventListener("click", function () {
+      clearAuthError();
+      if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { showAuthError("ההתחברות לא זמינה כרגע — נסו שוב מאוחר יותר."); return; }
+      setAuthBusy(true, "מעביר לגוגל…");
+      firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider())
+        .catch(function (err) { setAuthBusy(false); showAuthError(friendlyAuthError(err)); });
+    });
+  }
+
   function initCloudBackup() {
-    if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { setCloudStatus("disabled"); return; }
+    if (!CLOUD_CONFIGURED || typeof firebase === "undefined") { setCloudStatus("disabled"); revealApp(); return; }
     try {
       firebase.initializeApp(firebaseConfig);
       setCloudStatus("connecting");
       firebase.auth().onAuthStateChanged(function (user) {
-        if (!user) return;
+        // Anonymous users never existed under this flow (see the removed signInAnonymously()
+        // call below) — real accounts only, so a null/anonymous user just means #authOverlay
+        // stays up and waits for the sign-in/registration form or Google button.
+        if (!user || user.isAnonymous) { setCloudStatus("disabled"); return; }
         cloudUid = user.uid;
         setCloudStatus("connected");
         maybeRestoreFromCloud();
+        revealApp();
       });
-      firebase.auth().signInAnonymously().catch(function () { setCloudStatus("error"); });
+      // Resolves the pending redirect from signInWithRedirect(), if any — onAuthStateChanged
+      // above reflects the real outcome either way, this is only here so a failed redirect
+      // (e.g. the user backed out of the Google chooser) surfaces as a visible error instead of
+      // silently doing nothing.
+      firebase.auth().getRedirectResult().catch(function (err) {
+        if (authOverlay) {
+          var el = document.getElementById("authError");
+          if (el) { el.textContent = friendlyAuthError(err); el.style.display = "block"; }
+        }
+      });
     } catch (err) {
       setCloudStatus("error");
+      revealApp();
     }
+    // A dead network (or a misconfigured project) on first-ever launch would otherwise leave
+    // #authOverlay up forever with no way in — after a few seconds with no verdict either way,
+    // let the user through to their local data rather than trapping them behind a gate that
+    // can't resolve. Once a real sign-in succeeds, revealApp() has already run and this is a
+    // no-op (see the authRevealed guard).
+    setTimeout(revealApp, 8000);
   }
 
   window.__scheduleCloudSync = function () {
